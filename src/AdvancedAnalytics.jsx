@@ -165,7 +165,7 @@ export const LoanSizeChart = ({ data = [], theme }) => {
     );
 };
 
-// --- Calendar Frequency Heatmap (Simplified) ---
+// --- Calendar Frequency Heatmap (Improved) ---
 export const MonthlyHeatmap = ({ data = [], theme }) => {
     return (
         <ParentSize>
@@ -177,7 +177,8 @@ export const MonthlyHeatmap = ({ data = [], theme }) => {
 
                 const columns = 7;
                 const rows = 5;
-                const size = Math.min(innerWidth / columns, innerHeight / rows) - 6;
+                const gap = 4;
+                const size = Math.min((innerWidth - (columns - 1) * gap) / columns, (innerHeight - (rows - 1) * gap) / rows);
 
                 const maxCount = Math.max(1, ...data.map(d => d.count));
                 const colorScale = scaleLinear({
@@ -185,22 +186,44 @@ export const MonthlyHeatmap = ({ data = [], theme }) => {
                     range: [theme === 'dark' ? '#1e293b' : '#f1f5f9', '#3b82f6'],
                 });
 
+                const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
+                const activeTextColor = '#ffffff';
+
                 return (
                     <svg width={width} height={height}>
                         <Group left={margin.left} top={margin.top}>
                             {data.map((d, i) => {
                                 const col = (d.day - 1) % columns;
                                 const row = Math.floor((d.day - 1) / columns);
+                                const x = col * (size + gap);
+                                const y = row * (size + gap);
+                                const isHighActivity = d.count > maxCount * 0.4;
+
                                 return (
-                                    <rect
-                                        key={i}
-                                        x={col * (size + 6)}
-                                        y={row * (size + 6)}
-                                        width={size}
-                                        height={size}
-                                        fill={colorScale(d.count)}
-                                        rx={4}
-                                    />
+                                    <Group key={i}>
+                                        <rect
+                                            x={x}
+                                            y={y}
+                                            width={size}
+                                            height={size}
+                                            fill={colorScale(d.count)}
+                                            rx={4}
+                                        >
+                                            <title>{`Число: ${d.day}\nТранзакций: ${d.count}`}</title>
+                                        </rect>
+                                        <text
+                                            x={x + size / 2}
+                                            y={y + size / 2}
+                                            dy=".33em"
+                                            fontSize={size * 0.4}
+                                            fontWeight={700}
+                                            textAnchor="middle"
+                                            fill={isHighActivity ? activeTextColor : textColor}
+                                            style={{ pointerEvents: 'none', opacity: 0.8 }}
+                                        >
+                                            {d.day}
+                                        </text>
+                                    </Group>
                                 );
                             })}
                         </Group>
