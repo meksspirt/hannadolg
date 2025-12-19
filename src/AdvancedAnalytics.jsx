@@ -28,7 +28,8 @@ export const WeekdayChart = ({ data = [], theme }) => {
                 });
 
                 const color = '#3b82f6';
-                const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
+                const textColor = theme === 'dark' ? '#cbd5e1' : '#475569';
+                const labelFontWeight = 600;
 
                 return (
                     <svg width={width} height={height}>
@@ -58,7 +59,8 @@ export const WeekdayChart = ({ data = [], theme }) => {
                                 tickStroke={textColor}
                                 tickLabelProps={() => ({
                                     fill: textColor,
-                                    fontSize: 11,
+                                    fontSize: 12,
+                                    fontWeight: labelFontWeight,
                                     textAnchor: 'middle',
                                 })}
                             />
@@ -70,7 +72,8 @@ export const WeekdayChart = ({ data = [], theme }) => {
                                 tickFormat={v => `${(v / 1000).toFixed(0)}k`}
                                 tickLabelProps={() => ({
                                     fill: textColor,
-                                    fontSize: 10,
+                                    fontSize: 11,
+                                    fontWeight: labelFontWeight,
                                     textAnchor: 'end',
                                     dx: -4,
                                 })}
@@ -104,7 +107,8 @@ export const LoanSizeChart = ({ data = [], theme }) => {
                     domain: [0, Math.max(0, ...data.map(d => d.amount)) * 1.1],
                 });
 
-                const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
+                const textColor = theme === 'dark' ? '#cbd5e1' : '#475569';
+                const labelFontWeight = 600;
 
                 return (
                     <svg width={width} height={height}>
@@ -134,7 +138,8 @@ export const LoanSizeChart = ({ data = [], theme }) => {
                                 tickStroke={textColor}
                                 tickLabelProps={() => ({
                                     fill: textColor,
-                                    fontSize: 11,
+                                    fontSize: 12,
+                                    fontWeight: labelFontWeight,
                                     textAnchor: 'middle',
                                 })}
                             />
@@ -146,7 +151,8 @@ export const LoanSizeChart = ({ data = [], theme }) => {
                                 tickFormat={v => `${(v / 1000).toFixed(0)}k`}
                                 tickLabelProps={() => ({
                                     fill: textColor,
-                                    fontSize: 10,
+                                    fontSize: 11,
+                                    fontWeight: labelFontWeight,
                                     textAnchor: 'end',
                                     dx: -4,
                                 })}

@@ -94,7 +94,7 @@ const DebtChart = ({
     );
 
     const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-    const axisColor = theme === 'dark' ? '#94a3b8' : '#64748b';
+    const axisColor = theme === 'dark' ? '#cbd5e1' : '#475569';
 
     return (
         <div style={{ position: 'relative' }}>
@@ -113,7 +113,8 @@ const DebtChart = ({
                         tickStroke={axisColor}
                         tickLabelProps={() => ({
                             fill: axisColor,
-                            fontSize: 10,
+                            fontSize: 11,
+                            fontWeight: 600,
                             textAnchor: 'middle',
                         })}
                         numTicks={width > 500 ? 6 : 3}
@@ -125,7 +126,8 @@ const DebtChart = ({
                         tickStroke={axisColor}
                         tickLabelProps={() => ({
                             fill: axisColor,
-                            fontSize: 10,
+                            fontSize: 11,
+                            fontWeight: 600,
                             textAnchor: 'end',
                             dx: -4,
                             dy: 4,
