@@ -102,31 +102,39 @@ const App = () => {
     const processTransactions = (raw, isDbData) => {
         let currentDebt = 0;
         
-        // Отладка: посмотрим на первую транзакцию
-        if (raw.length > 0) {
-            console.log('Sample transaction:', raw[0]);
-        }
-        
         return raw.map(t => {
             const income = parseFloat(t.income) || 0;
             const outcome = parseFloat(t.outcome) || 0;
             
-            // Правильная логика: если есть outcome (расход) - это "Дано в долг"
-            // Если есть income (доход) - это "Возврат"
+            // Правильная логика: определяем тип по счетам
+            // Если деньги идут В "Долги" - это "Дано в долг"
+            // Если деньги идут ИЗ "Долги" - это "Возврат"
             let amount, type;
             
-            if (outcome > 0) {
-                amount = outcome;
-                type = 'Дано в долг';
-                currentDebt += outcome;
-            } else if (income > 0) {
+            const incomeAccount = (t.income_account_name || '').toLowerCase();
+            const outcomeAccount = (t.outcome_account_name || '').toLowerCase();
+            
+            if (incomeAccount.includes('долги') || incomeAccount.includes('долг')) {
+                // Деньги пришли на счет "Долги" = дали в долг
                 amount = income;
+                type = 'Дано в долг';
+                currentDebt += income;
+            } else if (outcomeAccount.includes('долги') || outcomeAccount.includes('долг')) {
+                // Деньги ушли со счета "Долги" = вернули долг
+                amount = outcome;
                 type = 'Возврат';
-                currentDebt -= income;
+                currentDebt -= outcome;
             } else {
-                // Fallback если и то и то равно 0
-                amount = 0;
-                type = 'Неизвестно';
+                // Fallback: используем старую логику
+                if (outcome > 0) {
+                    amount = outcome;
+                    type = 'Дано в долг';
+                    currentDebt += outcome;
+                } else {
+                    amount = income;
+                    type = 'Возврат';
+                    currentDebt -= income;
+                }
             }
 
             const dateStr = t.date;
