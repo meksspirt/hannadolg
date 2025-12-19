@@ -742,6 +742,197 @@ td {
     color: var(--danger);
 }
 
+
+/* Achievements Bar */
+.achievements-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.achievement-chip {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s;
+    cursor: default;
+}
+
+.achievement-chip:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+}
+
+.ach-icon {
+    font-size: 1.25rem;
+}
+
+.ach-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.ach-title {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text);
+}
+
+.ach-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Stat Delta */
+.stat-delta {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 0.5rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.stat-delta.up {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.stat-delta.down {
+    color: var(--success);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+/* Simulator Control */
+.simulator-control {
+    width: 100%;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border);
+}
+
+.simulator-control label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #10b981;
+    margin-bottom: 0.5rem;
+}
+
+.simulator-control input[type="range"] {
+    width: 100%;
+    accent-color: #10b981;
+    cursor: pointer;
+}
+
+.simulator-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 5px;
+}
+
+/* Habbits Display */
+.habbits-display {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.habbit-main,
+.habbit-savings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.habbit-label,
+.savings-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.habbit-value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--danger);
+}
+
+.savings-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--success);
+}
+
+/* Planner List */
+.planner-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.5rem;
+}
+
+.planned-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.planned-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.planned-comment {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.planned-amount {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.planned-type {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.planned-type.in {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success);
+}
+
+.planned-type.out {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
+
+.empty-planner {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    padding: 1rem;
+}
+
 /* Mobile Overrides */
 @media (max-width: 768px) {
     .container {

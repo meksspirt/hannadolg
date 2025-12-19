@@ -27,7 +27,8 @@ const App = () => {
     const [chartMode, setChartMode] = useState('debt'); // 'debt' or 'flow'
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [safetyLimit, setSafetyLimit] = useState(localStorage.getItem('safetyLimit') || 50000);
-    const [payoffTargetDate, setPayoffTargetDate] = useState(localStorage.getItem('payoffTargetDate') || null);
+    const [payoffTargetDate, setPayoffTargetDate] = useState(() => localStorage.getItem('payoffTargetDate') || '');
+    const [extraPayment, setExtraPayment] = useState(0);
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -382,6 +383,62 @@ const App = () => {
         // Предупреждение о лимите (пользовательский лимит)
         const isOverLimit = currentDebt > safetyLimit;
 
+        // Интерактивный симулятор (Что если?)
+        let simulatorData = [];
+        if (extraPayment > 0) {
+            const monthlyRepayment = (returns.length > 0 ? (totalReceived / monthsDiff) : 0) + extraPayment;
+            if (monthlyRepayment > 0) {
+                const monthsToPayoff = Math.ceil(currentDebt / monthlyRepayment);
+                for (let i = 0; i <= Math.min(12, monthsToPayoff); i++) {
+                    const date = new Date();
+                    date.setMonth(date.getMonth() + i);
+                    simulatorData.push({
+                        date,
+                        debt: Math.max(0, currentDebt - monthlyRepayment * i)
+                    });
+                }
+            }
+        }
+
+        // 2. Сравнение периодов (Бенчмарки)
+        let benchmarks = {
+            monthlyChange: 0,
+            intervalChange: 0,
+            returnSpeedChange: 0
+        };
+        if (monthlyStats.length >= 2) {
+            benchmarks.monthlyChange = (((monthlyStats[0].given / monthlyStats[1].given) - 1) * 100).toFixed(1);
+        }
+        if (recentIntervals.length > 0 && prevIntervals.length > 0) {
+            const currentAvg = recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length;
+            const prevAvg = prevIntervals.reduce((a, b) => a + b, 0) / prevIntervals.length;
+            benchmarks.intervalChange = (currentAvg - prevAvg).toFixed(1);
+        }
+
+        // 3. Детектор вредных привычек
+        const badHabitsTotal = categoryMap['Вредные привычки'] || 0;
+        const potentialSavings = badHabitsTotal * 0.5;
+
+        // 4. Геймификация (Достижения)
+        const achievements = [];
+        const daysSinceLastLoan = lastLoan ? (new Date() - lastLoan.sortDate) / (1000 * 60 * 60 * 24) : 999;
+
+        if (daysSinceLastLoan >= 7) achievements.push({ id: 'discipline', icon: '🏆', title: 'Железная дисциплина', desc: '7+ дней без новых займов' });
+        if (recentMonths.length > 0 && recentMonths[0].received > (currentDebt + totalReceived) * 0.3)
+            achievements.push({ id: 'reactive', icon: '🚀', title: 'Реактивный возврат', desc: 'Вернули >30% долга за месяц' });
+        if (debtTrend === 'decreasing') achievements.push({ id: 'freedom', icon: '📉', title: 'Тренд на свободу', desc: 'Долг стабильно падает' });
+
+        // 5. Мини-планировщик платежей (поиск дат в комментариях)
+        const plannedPayments = data
+            .filter(t => /верн|отда|обеща|до \d|к \d/.test(t.comment.toLowerCase()))
+            .slice(0, 5)
+            .map(t => ({
+                id: t.id,
+                comment: t.comment,
+                amount: t.amount,
+                type: t.type
+            }));
+
         return {
             currentDebt,
             totalGiven,
@@ -400,11 +457,16 @@ const App = () => {
             daysOfMonthData: Object.entries(daysOfMonthMap).map(([day, count]) => ({ day: parseInt(day), count })),
             cumulativeData,
             forecastData,
+            simulatorData,
+            benchmarks,
+            badHabits: { total: badHabitsTotal, potentialSavings },
+            achievements,
+            plannedPayments,
             intervals: { avg: avgInterval, trend: intervalTrend },
             burndown,
             safetyLimit
         };
-    }, [data]);
+    }, [data, safetyLimit, payoffTargetDate, extraPayment]);
 
     const filteredData = useMemo(() => {
         return data.filter(t => {
@@ -562,15 +624,35 @@ const App = () => {
 
             <FinancialAdvice stats={stats} />
 
+            {/* Achievements Section */}
+            {stats.achievements.length > 0 && (
+                <div className="achievements-bar">
+                    {stats.achievements.map(ach => (
+                        <div key={ach.id} className="achievement-chip" title={ach.desc}>
+                            <span className="ach-icon">{ach.icon}</span>
+                            <div className="ach-info">
+                                <span className="ach-title">{ach.title}</span>
+                                <span className="ach-desc">{ach.desc}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <div className="stats-grid">
                 <div className={`card stat-card ${stats.isOverLimit ? 'danger blink' : 'danger'}`}>
                     <span className="label">
-                        Текущий долг
+                        Долг Ганны 📈
                         {stats.isOverLimit && <span className="warning-icon">⚠️</span>}
                     </span>
                     <span className="value">
                         {formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span>
                     </span>
+                    {stats.benchmarks.monthlyChange !== 0 && (
+                        <span className={`stat-delta ${stats.benchmarks.monthlyChange > 0 ? 'up' : 'down'}`}>
+                            {stats.benchmarks.monthlyChange > 0 ? '+' : ''}{stats.benchmarks.monthlyChange}% к прошлому мес.
+                        </span>
+                    )}
                 </div>
                 <div className="card stat-card warning">
                     <span className="label">Дано всего</span>
@@ -661,6 +743,7 @@ const App = () => {
                                     width={width}
                                     height={height}
                                     theme={theme}
+                                    simulatorData={stats.simulatorData}
                                 />
                             )}
                         </ParentSize>
@@ -684,6 +767,20 @@ const App = () => {
                             }} />
                         </div>
                     </div>
+                    {chartMode === 'debt' && (
+                        <div className="simulator-control">
+                            <label>Симулятор: +{formatAmount(extraPayment)} ₴/мес к возврату</label>
+                            <input
+                                type="range"
+                                min="0"
+                                max="10000"
+                                step="500"
+                                value={extraPayment}
+                                onChange={(e) => setExtraPayment(Number(e.target.value))}
+                            />
+                            {extraPayment > 0 && <span className="simulator-hint">Зеленый пунктир — ускоренный план</span>}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -719,6 +816,38 @@ const App = () => {
                         <MonthlyHeatmap data={stats.daysOfMonthData} theme={theme} />
                     </div>
                     <p className="chart-hint">Яркость — количество транзакций в этот день месяца</p>
+                </div>
+                <div className="card analytics-card habbits-card">
+                    <h3>Детектор привычек 🚬</h3>
+                    <div className="habbits-display">
+                        <div className="habbit-main">
+                            <span className="habbit-label">Траты на вредные привычки</span>
+                            <span className="habbit-value">{formatAmount(stats.badHabits.total)} ₴</span>
+                        </div>
+                        <div className="habbit-savings">
+                            <span className="savings-label">Если сократить на 50%, вы сэкономите:</span>
+                            <span className="savings-value">+{formatAmount(stats.badHabits.potentialSavings)} ₴</span>
+                        </div>
+                    </div>
+                    <p className="chart-hint">Подсчет на основе категории "Вредные привычки"</p>
+                </div>
+                <div className="card analytics-card planner-card">
+                    <h3>Планировщик платежей 🗓️</h3>
+                    <div className="planner-list">
+                        {stats.plannedPayments.length > 0 ? stats.plannedPayments.map(p => (
+                            <div key={p.id} className="planned-item">
+                                <div className="planned-info">
+                                    <span className="planned-comment">{p.comment}</span>
+                                    <span className="planned-amount">{formatAmount(p.amount)} ₴</span>
+                                </div>
+                                <span className={`planned-type ${p.type === 'Дано в долг' ? 'out' : 'in'}`}>
+                                    {p.type === 'Дано в долг' ? 'Отдать' : 'Вернут'}
+                                </span>
+                            </div>
+                        )) : (
+                            <p className="empty-planner">Запланированных дат не найдено в комментариях</p>
+                        )}
+                    </div>
                 </div>
             </div>
 

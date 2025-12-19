@@ -31,6 +31,7 @@ const DebtChart = ({
     data,
     forecastData = [],
     burndownData = [],
+    simulatorData = [],
     safetyLimit = null,
     mode = 'debt', // 'debt' or 'flow'
     width,
@@ -48,7 +49,7 @@ const DebtChart = ({
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    const allData = [...data, ...forecastData, ...burndownData];
+    const allData = [...data, ...forecastData, ...burndownData, ...simulatorData];
 
     // scales
     const dateScale = useMemo(
@@ -180,6 +181,17 @@ const DebtChart = ({
                                     stroke="#f59e0b"
                                     strokeWidth={2}
                                     strokeDasharray="3,3"
+                                    curve={curveMonotoneX}
+                                />
+                            )}
+                            {simulatorData.length > 0 && (
+                                <LinePath
+                                    data={[data[data.length - 1], ...simulatorData]}
+                                    x={(d) => dateScale(getDate(d)) ?? 0}
+                                    y={(d) => debtScale(getDebtValue(d)) ?? 0}
+                                    stroke="#10b981"
+                                    strokeWidth={3}
+                                    strokeDasharray="4,2"
                                     curve={curveMonotoneX}
                                 />
                             )}
