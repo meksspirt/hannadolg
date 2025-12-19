@@ -933,6 +933,184 @@ td {
     padding: 1rem;
 }
 
+
+/* Milestones */
+.milestones-card {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+}
+
+.milestones-track {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    margin-top: 2rem;
+    padding: 0 1rem;
+}
+
+.milestones-track::before {
+    content: '';
+    position: absolute;
+    top: 22px;
+    left: 2rem;
+    right: 2rem;
+    height: 4px;
+    background: var(--border);
+    z-index: 1;
+}
+
+.milestone-step {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.step-circle {
+    width: 44px;
+    height: 44px;
+    background: var(--card);
+    border: 3px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.milestone-step.reached .step-circle {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+    transform: scale(1.15);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+}
+
+.step-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.milestone-step.reached .step-label {
+    color: var(--success);
+}
+
+/* Metric Cards */
+.special-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.metric-card {
+    text-align: center;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* Stress Gauge */
+.stress-gauge {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.gauge-fill {
+    height: 100%;
+    transition: width 1s ease-out;
+}
+
+.stress-value {
+    font-size: 2rem;
+    font-weight: 800;
+}
+
+.stress-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* Joy & Inflation Values */
+.joy-value,
+.profit-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.profit-value {
+    color: var(--success);
+}
+
+.per-day {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+/* Anomalies */
+.anomalies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.anomaly-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.1);
+    border-radius: 10px;
+    align-items: center;
+}
+
+.ano-msg {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+}
+
+/* Strategies */
+.strategies-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.strategy-col h4 {
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.strat-item {
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
 /* Mobile Overrides */
 @media (max-width: 768px) {
     .container {
@@ -969,9 +1147,14 @@ td {
     }
 
     .advice-container,
-    .advanced-grid {
+    .advanced-grid,
+    .special-metrics-grid {
         grid-template-columns: 1fr;
         gap: 1rem;
+    }
+
+    .strategies-tabs {
+        grid-template-columns: 1fr;
     }
 
     .advice-card {

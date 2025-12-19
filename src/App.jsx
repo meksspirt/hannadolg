@@ -29,6 +29,8 @@ const App = () => {
     const [safetyLimit, setSafetyLimit] = useState(localStorage.getItem('safetyLimit') || 50000);
     const [payoffTargetDate, setPayoffTargetDate] = useState(() => localStorage.getItem('payoffTargetDate') || '');
     const [extraPayment, setExtraPayment] = useState(0);
+    const [monthlyIncome, setMonthlyIncome] = useState(() => Number(localStorage.getItem('monthlyIncome')) || 30000);
+    const [inflationRate, setInflationRate] = useState(() => Number(localStorage.getItem('inflationRate')) || 15);
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -428,16 +430,49 @@ const App = () => {
             achievements.push({ id: 'reactive', icon: '🚀', title: 'Реактивный возврат', desc: 'Вернули >30% долга за месяц' });
         if (debtTrend === 'decreasing') achievements.push({ id: 'freedom', icon: '📉', title: 'Тренд на свободу', desc: 'Долг стабильно падает' });
 
-        // 5. Мини-планировщик платежей (поиск дат в комментариях)
-        const plannedPayments = data
-            .filter(t => /верн|отда|обеща|до \d|к \d/.test(t.comment.toLowerCase()))
-            .slice(0, 5)
-            .map(t => ({
-                id: t.id,
-                comment: t.comment,
-                amount: t.amount,
-                type: t.type
-            }));
+        // 6. Инфляционный профит (упрощенный)
+        const inflationProfit = currentDebt * (inflationRate / 100) * (monthsDiff / 12);
+
+        // 7. Температура стресса (0-100)
+        const debtToIncomeRatio = monthlyIncome > 0 ? (currentDebt / monthlyIncome) : 0;
+        let stressScore = Math.min(100, Math.ceil(
+            (debtToIncomeRatio * 20) +
+            (stats.debtTrend === 'growing' ? 30 : 0) +
+            (isOverLimit ? 20 : 0)
+        ));
+
+        // 8. Бюджет на радости
+        const monthlyRest = Math.max(0, monthlyIncome - avgMonthlyGiven);
+        const joyBudget = (monthlyRest * 0.1) / 30; // 10% от остатка на радости в день
+
+        // 9. Детектор аномалий (Черные дыры)
+        const anomalies = [];
+        const weekdayCounts = Object.values(weekdayMap);
+        const avgWeekdayAmount = weekdayCounts.reduce((a, b) => a + b, 0) / 7;
+        Object.entries(weekdayMap).forEach(([day, amt]) => {
+            if (amt > avgWeekdayAmount * 1.5) {
+                const daysNames = ['воскресенье', 'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу'];
+                anomalies.push({ type: 'day_spike', msg: `Всплеск трат в ${daysNames[day]}. Почти в ${(amt / avgWeekdayAmount).toFixed(1)} раза выше среднего.` });
+            }
+        });
+
+        // 10. Мили (Milestones)
+        const maxDebtEver = Math.max(...cumulativeData.map(d => d.debt), currentDebt);
+        const achievements_milestones = [
+            { label: '25%', value: 0.25, reached: currentDebt <= maxDebtEver * 0.75 },
+            { label: '50%', value: 0.50, reached: currentDebt <= maxDebtEver * 0.50 },
+            { label: '75%', value: 0.75, reached: currentDebt <= maxDebtEver * 0.25 },
+        ];
+
+        // 11. Снежный ком vs Лавина
+        const entities = {};
+        loans.forEach(l => {
+            const name = l.comment.split(' ')[0] || 'Unknown';
+            if (!entities[name]) entities[name] = 0;
+            entities[name] += l.amount;
+        });
+        const snowball = Object.entries(entities).sort((a, b) => a[1] - b[1]); // Сначала мелкие
+        const avalanche = Object.entries(entities).sort((a, b) => b[1] - a[1]); // Сначала крупные
 
         return {
             currentDebt,
@@ -462,11 +497,17 @@ const App = () => {
             badHabits: { total: badHabitsTotal, potentialSavings },
             achievements,
             plannedPayments,
+            inflationProfit,
+            stressScore,
+            joyBudget,
+            anomalies,
+            milestones: achievements_milestones,
+            strategies: { snowball: snowball.slice(0, 3), avalanche: avalanche.slice(0, 3) },
             intervals: { avg: avgInterval, trend: intervalTrend },
             burndown,
             safetyLimit
         };
-    }, [data, safetyLimit, payoffTargetDate, extraPayment]);
+    }, [data, safetyLimit, payoffTargetDate, extraPayment, monthlyIncome, inflationRate]);
 
     const filteredData = useMemo(() => {
         return data.filter(t => {
@@ -639,6 +680,19 @@ const App = () => {
                 </div>
             )}
 
+            {/* Milestones Progress Table */}
+            <div className="card milestones-card">
+                <h3>Финансовые мили (Milestones) 🗺️</h3>
+                <div className="milestones-track">
+                    {stats.milestones.map((ms, i) => (
+                        <div key={i} className={`milestone-step ${ms.reached ? 'reached' : ''}`}>
+                            <div className="step-circle">{ms.reached ? '✅' : i + 1}</div>
+                            <span className="step-label">{ms.label}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             <div className="stats-grid">
                 <div className={`card stat-card ${stats.isOverLimit ? 'danger blink' : 'danger'}`}>
                     <span className="label">
@@ -760,10 +814,17 @@ const App = () => {
                             }} />
                         </div>
                         <div className="setting-item">
-                            <label>Цель к:</label>
-                            <input type="date" value={payoffTargetDate || ''} onChange={(e) => {
-                                setPayoffTargetDate(e.target.value);
-                                localStorage.setItem('payoffTargetDate', e.target.value);
+                            <label>Доход:</label>
+                            <input type="number" value={monthlyIncome} onChange={(e) => {
+                                setMonthlyIncome(Number(e.target.value));
+                                localStorage.setItem('monthlyIncome', e.target.value);
+                            }} />
+                        </div>
+                        <div className="setting-item">
+                            <label>Инфляция (%):</label>
+                            <input type="number" value={inflationRate} onChange={(e) => {
+                                setInflationRate(Number(e.target.value));
+                                localStorage.setItem('inflationRate', e.target.value);
                             }} />
                         </div>
                     </div>
@@ -781,6 +842,29 @@ const App = () => {
                             {extraPayment > 0 && <span className="simulator-hint">Зеленый пунктир — ускоренный план</span>}
                         </div>
                     )}
+                </div>
+            </div>
+
+            <div className="special-metrics-grid">
+                <div className="card metric-card stress-card">
+                    <h3>Фин. Стрессометр 🌡️</h3>
+                    <div className="stress-gauge">
+                        <div className="gauge-fill" style={{ width: `${stats.stressScore}%`, background: stats.stressScore > 70 ? 'var(--danger)' : stats.stressScore > 40 ? 'var(--warning)' : 'var(--success)' }}></div>
+                    </div>
+                    <div className="stress-value">{stats.stressScore}%</div>
+                    <p className="stress-label">
+                        {stats.stressScore > 70 ? 'Критический (Нужна пауза)' : stats.stressScore > 40 ? 'Умеренный (Следите за тратами)' : 'Прохладно (Всё ок)'}
+                    </p>
+                </div>
+                <div className="card metric-card joy-card">
+                    <h3>Бюджет на радости 🍰</h3>
+                    <div className="joy-value">{formatAmount(stats.joyBudget)} ₴ <span className="per-day">/ день</span></div>
+                    <p className="chart-hint">Сколько можно тратить на себя без вреда прогнозу</p>
+                </div>
+                <div className="card metric-card inflation-card">
+                    <h3>Инфляционный профит 📉</h3>
+                    <div className="profit-value">+{formatAmount(stats.inflationProfit)} ₴</div>
+                    <p className="chart-hint">На столько "подешевел" ваш долг за всё время</p>
                 </div>
             </div>
 
@@ -830,6 +914,36 @@ const App = () => {
                         </div>
                     </div>
                     <p className="chart-hint">Подсчет на основе категории "Вредные привычки"</p>
+                </div>
+                {stats.anomalies.length > 0 && (
+                    <div className="card analytics-card anomalies-card">
+                        <h3>Детектор аномалий 🕳️</h3>
+                        <div className="anomalies-list">
+                            {stats.anomalies.map((ano, i) => (
+                                <div key={i} className="anomaly-item">
+                                    <span className="ano-icon">🚨</span>
+                                    <span className="ano-msg">{ano.msg}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                <div className="card analytics-card strategies-card">
+                    <h3>Стратегии погашения ❄️🌋</h3>
+                    <div className="strategies-tabs">
+                        <div className="strategy-col">
+                            <h4>Снежный ком (мелкие)</h4>
+                            {stats.strategies.snowball.map(([name, amt], i) => (
+                                <div key={i} className="strat-item">{name}: {formatAmount(amt)} ₴</div>
+                            ))}
+                        </div>
+                        <div className="strategy-col">
+                            <h4>Лавина (крупные)</h4>
+                            {stats.strategies.avalanche.map(([name, amt], i) => (
+                                <div key={i} className="strat-item">{name}: {formatAmount(amt)} ₴</div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
                 <div className="card analytics-card planner-card">
                     <h3>Планировщик платежей 🗓️</h3>
