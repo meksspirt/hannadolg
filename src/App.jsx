@@ -101,14 +101,33 @@ const App = () => {
 
     const processTransactions = (raw, isDbData) => {
         let currentDebt = 0;
+        
+        // Отладка: посмотрим на первую транзакцию
+        if (raw.length > 0) {
+            console.log('Sample transaction:', raw[0]);
+        }
+        
         return raw.map(t => {
             const income = parseFloat(t.income) || 0;
             const outcome = parseFloat(t.outcome) || 0;
-            const amount = income > 0 ? income : outcome;
-            const type = income > 0 ? 'Возврат' : 'Дано в долг';
-
-            if (income > 0) currentDebt -= income;
-            else currentDebt += outcome;
+            
+            // Правильная логика: если есть outcome (расход) - это "Дано в долг"
+            // Если есть income (доход) - это "Возврат"
+            let amount, type;
+            
+            if (outcome > 0) {
+                amount = outcome;
+                type = 'Дано в долг';
+                currentDebt += outcome;
+            } else if (income > 0) {
+                amount = income;
+                type = 'Возврат';
+                currentDebt -= income;
+            } else {
+                // Fallback если и то и то равно 0
+                amount = 0;
+                type = 'Неизвестно';
+            }
 
             const dateStr = t.date;
             const sortDate = new Date(dateStr.split('.').reverse().join('-'));
