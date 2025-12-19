@@ -170,9 +170,23 @@ body {
 }
 
 /* Аналитические карточки */
+.analytics-card {
+    display: flex;
+    flex-direction: column;
+}
+
 .analytics-card h3 {
     margin-bottom: 1.5rem;
     color: var(--text);
+}
+
+.interval-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+    padding: 1rem;
 }
 
 .categories-list {
@@ -697,14 +711,6 @@ td {
     width: 100px;
 }
 
-.interval-display {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 1rem;
-}
 
 .interval-main {
     display: flex;
