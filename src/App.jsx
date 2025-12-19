@@ -270,7 +270,7 @@ const App = () => {
             .map(([name, amount]) => ({ name, amount, percentage: ((amount / totalGiven) * 100).toFixed(1) }));
 
         // Кумулятивные данные
-        const sortedAll = [...data].sort((a, b) => a.sortDate - b.date);
+        const sortedAll = [...data].sort((a, b) => a.sortDate - b.sortDate);
         let cumGiven = 0;
         let cumReceived = 0;
         const cumulativeData = sortedAll.map(t => {

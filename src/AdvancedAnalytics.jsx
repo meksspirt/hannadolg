@@ -13,14 +13,14 @@ export const WeekdayChart = ({ data = [], theme }) => {
         <ParentSize>
             {({ width, height }) => {
                 if (width < 10) return null;
-                const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+                const margin = { top: 20, right: 20, bottom: 50, left: 60 };
                 const xMax = width - margin.left - margin.right;
                 const yMax = height - margin.top - margin.bottom;
 
                 const xScale = scaleBand({
                     range: [0, xMax],
                     domain: data.map(d => days[d.day]),
-                    padding: 0.4,
+                    padding: 0.3,
                 });
                 const yScale = scaleLinear({
                     range: [yMax, 0],
@@ -90,14 +90,14 @@ export const LoanSizeChart = ({ data = [], theme }) => {
         <ParentSize>
             {({ width, height }) => {
                 if (width < 10) return null;
-                const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+                const margin = { top: 20, right: 20, bottom: 50, left: 60 };
                 const xMax = width - margin.left - margin.right;
                 const yMax = height - margin.top - margin.bottom;
 
                 const xScale = scaleBand({
                     range: [0, xMax],
                     domain: data.map(d => labels[d.size]),
-                    padding: 0.5,
+                    padding: 0.4,
                 });
                 const yScale = scaleLinear({
                     range: [yMax, 0],
@@ -171,7 +171,7 @@ export const MonthlyHeatmap = ({ data = [], theme }) => {
 
                 const columns = 7;
                 const rows = 5;
-                const size = Math.min(innerWidth / columns, innerHeight / rows) - 4;
+                const size = Math.min(innerWidth / columns, innerHeight / rows) - 6;
 
                 const maxCount = Math.max(1, ...data.map(d => d.count));
                 const colorScale = scaleLinear({
@@ -188,8 +188,8 @@ export const MonthlyHeatmap = ({ data = [], theme }) => {
                                 return (
                                     <rect
                                         key={i}
-                                        x={col * (size + 4)}
-                                        y={row * (size + 4)}
+                                        x={col * (size + 6)}
+                                        y={row * (size + 6)}
                                         width={size}
                                         height={size}
                                         fill={colorScale(d.count)}
