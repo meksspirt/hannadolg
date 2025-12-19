@@ -33,6 +33,14 @@ ChartJS.register(
 );
 
 const App = () => {
+    // Функция для красивого форматирования чисел (разделитель пробел)
+    const formatAmount = (num) => {
+        return new Intl.NumberFormat('ru-RU', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(num).replace(',', '.'); // Используем точку для копеек, но пробел для тысяч
+    };
+
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -300,15 +308,15 @@ const App = () => {
                     <div className="card stats-summary">
                         <div className="stat-item">
                             <span className="stat-label">Текущий долг</span>
-                            <span className="stat-value danger">{stats.currentDebt.toFixed(2)} ₴</span>
+                            <span className="stat-value danger">{formatAmount(stats.currentDebt)} ₴</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">Вернула всего</span>
-                            <span className="stat-value success">{stats.totalReceived.toFixed(2)} ₴</span>
+                            <span className="stat-value success">{formatAmount(stats.totalReceived)} ₴</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">Выдано всего</span>
-                            <span className="stat-value">{stats.totalGiven.toFixed(2)} ₴</span>
+                            <span className="stat-value">{formatAmount(stats.totalGiven)} ₴</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">Процент возврата</span>
@@ -419,8 +427,8 @@ const App = () => {
                                                     {t.type}
                                                 </span>
                                             </td>
-                                            <td>{t.amount.toFixed(2)}</td>
-                                            <td><strong>{t.currentDebt.toFixed(2)}</strong></td>
+                                            <td>{formatAmount(t.amount)}</td>
+                                            <td><strong>{formatAmount(t.currentDebt)}</strong></td>
                                         </tr>
                                     ))}
                                 </tbody>
