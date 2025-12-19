@@ -412,7 +412,7 @@ body {
 }
 
 .chart-box-mini {
-    height: 260px;
+    min-height: 240px;
     margin-top: 1rem;
 }
 
@@ -550,11 +550,45 @@ td {
     cursor: not-allowed;
 }
 
+.advice-section-wrap {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
 .advice-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 1.5rem;
-    margin-bottom: 2rem;
+}
+
+.refresh-advice-btn {
+    position: absolute;
+    bottom: -15px;
+    right: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s;
+    z-index: 10;
+}
+
+.refresh-advice-btn:hover {
+    color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.refresh-advice-btn:active {
+    transform: scale(0.95);
 }
 
 .advice-card {
@@ -562,6 +596,9 @@ td {
     border-left: 4px solid var(--primary);
     background: linear-gradient(to right, rgba(59, 130, 246, 0.05), transparent);
     animation: slideIn 0.5s ease-out;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 @keyframes slideIn {
@@ -663,8 +700,7 @@ td {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    padding: 1rem;
+    padding: 2rem 1rem;
 }
 
 .interval-main {

@@ -1,7 +1,13 @@
-import React, { useMemo } from 'react';
-import { Lightbulb, TrendingDown, Target, ShieldCheck, Zap } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Lightbulb, TrendingDown, Target, ShieldCheck, Zap, RefreshCw } from 'lucide-react';
 
 const FinancialAdvice = ({ stats }) => {
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    React.useEffect(() => {
+        setRefreshTrigger(Math.random());
+    }, []);
+
     const advice = useMemo(() => {
         const generalPool = [
             {
@@ -106,25 +112,41 @@ const FinancialAdvice = ({ stats }) => {
             });
         }
 
-        // Перемешиваем общий пул для разнообразия
+        // Перемешиваем общий пул и алерты для максимального разнообразия
         const shuffledGeneral = [...generalPool].sort(() => 0.5 - Math.random());
+        const shuffledAlerts = [...contextualAlerts].sort(() => 0.5 - Math.random());
 
-        // Формируем итоговый список: сначала важные алерты, потом случайные советы
-        const result = [...contextualAlerts, ...shuffledGeneral].slice(0, 3);
+        // Формируем итоговый список: 
+        // Если есть алерты, берем 1 самый важный (случайный из алертов) + 1 рандомный совет
+        // Если алертов нет — 2 рандомных совета
+        let result = [];
+        if (shuffledAlerts.length > 0) {
+            result.push(shuffledAlerts[0]);
+            result.push(shuffledGeneral[0]);
+        } else {
+            result = shuffledGeneral.slice(0, 2);
+        }
+
         return result;
-    }, [stats]);
+    }, [stats, refreshTrigger]);
 
     return (
-        <div className="advice-container">
-            {advice.map((item) => (
-                <div key={item.id} className="card advice-card">
-                    <div className="advice-header">
-                        {item.icon}
-                        <span className="advice-title">{item.title}</span>
+        <div className="advice-section-wrap">
+            <div className="advice-container">
+                {advice.map((item) => (
+                    <div key={item.id} className="card advice-card">
+                        <div className="advice-header">
+                            {item.icon}
+                            <span className="advice-title">{item.title}</span>
+                        </div>
+                        <p className="advice-text">{item.text}</p>
                     </div>
-                    <p className="advice-text">{item.text}</p>
-                </div>
-            ))}
+                ))}
+            </div>
+            <button className="refresh-advice-btn" onClick={() => setRefreshTrigger(prev => prev + 1)}>
+                <RefreshCw size={14} />
+                Другие советы
+            </button>
         </div>
     );
 };
