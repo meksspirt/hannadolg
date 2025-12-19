@@ -1,58 +1,67 @@
 const { Pool } = require('pg');
 
 module.exports = async (req, res) => {
+    // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+        res.status(200).end();
+        return;
     }
 
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
+        return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const transactions = req.body;
-    if (!Array.isArray(transactions)) {
-        return res.status(400).json({ error: 'Invalid data format' });
+    const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!connectionString) {
+        return res.status(500).json({ error: "База данных не настроена (DATABASE_URL/POSTGRES_URL)" });
     }
 
     const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+        connectionString: connectionString,
         ssl: { rejectUnauthorized: false }
     });
 
-    const client = await pool.connect();
+    const transactions = req.body;
+    if (!Array.isArray(transactions)) {
+        return res.status(400).json({ error: "Invalid data format" });
+    }
 
     try {
-        await client.query('BEGIN');
+        await pool.query('BEGIN');
 
-        const query = `
+        const queryText = `
             INSERT INTO transactions (
-                date, category_name, payee, comment, outcome_account_name, outcome, 
-                outcome_currency, income_account_name, income, income_currency, 
-                created_date, changed_date, raw_line
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-            ON CONFLICT (created_date) DO NOTHING;
+                date, category_name, payee, comment, 
+                outcome_account_name, outcome, 
+                income_account_name, income, 
+                created_date, raw_line
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (created_date) DO NOTHING
         `;
 
         for (const t of transactions) {
-            await client.query(query, [
+            await pool.query(queryText, [
                 t.date, t.categoryName, t.payee, t.comment,
-                t.outcomeAccountName, t.outcome, t.outcomeCurrencyShortTitle || 'UAH',
-                t.incomeAccountName, t.income, t.incomeCurrencyShortTitle || 'UAH',
-                t.createdDate, t.changedDate || t.createdDate, t.rawLine
+                t.outcomeAccountName, t.outcome,
+                t.incomeAccountName, t.income,
+                t.createdDate, t.rawLine
             ]);
         }
 
-        await client.query('COMMIT');
-        res.status(200).json({ message: 'Success', count: transactions.length });
+        await pool.query('COMMIT');
+        res.status(200).json({ message: `Successfully processed ${transactions.length} items` });
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('Insert error:', error);
-        res.status(500).json({ error: 'Failed to save', details: error.message });
+        await pool.query('ROLLBACK');
+        console.error('Transaction error:', error);
+        res.status(500).json({
+            error: "Ошибка сохранения в БД: " + error.message,
+            detail: error.code === '42P01' ? "Таблица 'transactions' не найдена. Вы точно создали её в SQL Editor?" : "Проверьте права доступа и структуру таблицы."
+        });
     } finally {
-        client.release();
         await pool.end();
     }
 };

@@ -72,6 +72,9 @@ const App = () => {
                 const dbData = await res.json();
                 const processed = processTransactions(dbData, true);
                 setData(processed);
+            } else {
+                const errorData = await res.json();
+                console.error('Ошибка загрузки данных:', errorData);
             }
         } catch (e) {
             console.error('Fetch error:', e);
@@ -149,15 +152,17 @@ const App = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(parsed)
                 });
+
                 if (res.ok) {
                     alert('Данные успешно синхронизированы!');
                     fetchData();
                 } else {
-                    throw new Error('Сервер вернул ошибку ' + res.status);
+                    const errorInfo = await res.json();
+                    throw new Error(errorInfo.error || errorInfo.message || 'Неизвестная ошибка сервера');
                 }
             } catch (e) {
                 console.error('Ошибка сохранения:', e);
-                alert('Ошибка при сохранении в облако. Показываю данные локально.');
+                alert('Ошибка: ' + e.message);
                 setData(processTransactions(parsed, false));
             } finally {
                 setUploading(false);
@@ -235,41 +240,57 @@ const App = () => {
 
     // Данные для графика
     const chartData = {
-        labels: data.map(t => t.sortDate),
+        labels: data.map(d => d.date),
         datasets: [{
-            label: 'Сумма долга',
-            data: data.map(t => t.currentDebt),
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth: 3,
-            tension: 0.3,
+            label: 'Текущий долг',
+            data: data.map(d => d.currentDebt),
+            borderColor: '#6366f1',
+            backgroundColor: (context) => {
+                const ctx = context.chart.ctx;
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+                gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+                return gradient;
+            },
             fill: true,
+            tension: 0.4,
             pointRadius: 4,
-            pointBackgroundColor: '#3b82f6'
+            pointBackgroundColor: '#6366f1',
+            pointBorderColor: '#fff',
+            pointHoverRadius: 6,
         }]
     };
 
     const chartOptions = {
         responsive: true,
-        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: '#1e293b',
+                titleColor: '#94a3b8',
+                bodyColor: '#f8fafc',
+                padding: 12,
+                borderRadius: 8,
+                displayColors: false,
+                callbacks: {
+                    label: (context) => `Долг: ${formatAmount(context.raw)} ₴`
+                }
+            }
+        },
         scales: {
             x: {
                 type: 'time',
                 time: { unit: 'month', displayFormats: { month: 'MMM yyyy' } },
-                grid: { color: theme === 'dark' ? '#334155' : '#e2e8f0' },
-                ticks: { color: theme === 'dark' ? '#94a3b8' : '#64748b' }
+                grid: { display: false },
+                ticks: { color: '#94a3b8', font: { size: 11 } }
             },
             y: {
-                grid: { color: theme === 'dark' ? '#334155' : '#e2e8f0' },
-                ticks: { color: theme === 'dark' ? '#94a3b8' : '#64748b' }
-            }
-        },
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff',
-                titleColor: theme === 'dark' ? '#f1f5f9' : '#1e293b',
-                bodyColor: theme === 'dark' ? '#f1f5f9' : '#1e293b'
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: {
+                    color: '#94a3b8',
+                    font: { size: 11 },
+                    callback: (value) => formatAmount(value)
+                }
             }
         }
     };
@@ -384,20 +405,32 @@ const App = () => {
                                 <h3 style={{ margin: 0 }}>История операций</h3>
                             </div>
                             <div className="controls">
-                                <div style={{ position: 'relative' }}>
-                                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
+                                <div className="search-container">
+                                    <Search className="search-icon" size={18} />
                                     <input
                                         type="text"
-                                        placeholder="Поиск..."
-                                        style={{ paddingLeft: '35px' }}
+                                        placeholder="Поиск по комментариям..."
                                         value={searchQuery}
-                                        onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                        onChange={(e) => {
+                                            setSearchQuery(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="search-box"
                                     />
                                 </div>
-                                <div className="filter-buttons">
-                                    <button onClick={() => { setFilter('all'); setCurrentPage(1); }} className={filter === 'all' ? 'active' : ''}>Все</button>
-                                    <button onClick={() => { setFilter('given'); setCurrentPage(1); }} className={filter === 'given' ? 'active' : ''}>Выдано</button>
-                                    <button onClick={() => { setFilter('received'); setCurrentPage(1); }} className={filter === 'received' ? 'active' : ''}>Возвраты</button>
+                                <div className="filter-group">
+                                    <button
+                                        className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
+                                        onClick={() => { setFilter('all'); setCurrentPage(1); }}
+                                    >Все</button>
+                                    <button
+                                        className={`filter-btn ${filter === 'given' ? 'active' : ''}`}
+                                        onClick={() => { setFilter('given'); setCurrentPage(1); }}
+                                    >Выдано</button>
+                                    <button
+                                        className={`filter-btn ${filter === 'received' ? 'active' : ''}`}
+                                        onClick={() => { setFilter('received'); setCurrentPage(1); }}
+                                    >Возвраты</button>
                                 </div>
                             </div>
                         </div>
