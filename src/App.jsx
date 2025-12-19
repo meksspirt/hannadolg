@@ -214,7 +214,8 @@ const App = () => {
         if (data.length === 0) return {
             currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
             avgLoanAmount: 0, loansPerMonth: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
-            debtTrend: 'stable', projectedPayoff: null, isOverLimit: false
+            debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
+            weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: []
         };
 
         const loans = data.filter(t => t.type === 'Дано в долг');

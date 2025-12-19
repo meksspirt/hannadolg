@@ -7,7 +7,7 @@ import { HeatmapRect } from '@visx/heatmap';
 import { ParentSize } from '@visx/responsive';
 
 // --- Weekday Distribution ---
-export const WeekdayChart = ({ data, theme }) => {
+export const WeekdayChart = ({ data = [], theme }) => {
     const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
     return (
         <ParentSize>
@@ -24,7 +24,7 @@ export const WeekdayChart = ({ data, theme }) => {
                 });
                 const yScale = scaleLinear({
                     range: [yMax, 0],
-                    domain: [0, Math.max(...data.map(d => d.amount)) * 1.1],
+                    domain: [0, Math.max(0, ...data.map(d => d.amount)) * 1.1],
                 });
 
                 const color = '#3b82f6';
@@ -84,7 +84,7 @@ export const WeekdayChart = ({ data, theme }) => {
 };
 
 // --- Loan Size Distribution ---
-export const LoanSizeChart = ({ data, theme }) => {
+export const LoanSizeChart = ({ data = [], theme }) => {
     const labels = { small: '< 500', medium: '500-2k', large: '> 2k' };
     return (
         <ParentSize>
@@ -101,7 +101,7 @@ export const LoanSizeChart = ({ data, theme }) => {
                 });
                 const yScale = scaleLinear({
                     range: [yMax, 0],
-                    domain: [0, Math.max(...data.map(d => d.amount)) * 1.1],
+                    domain: [0, Math.max(0, ...data.map(d => d.amount)) * 1.1],
                 });
 
                 const textColor = theme === 'dark' ? '#94a3b8' : '#64748b';
@@ -160,7 +160,7 @@ export const LoanSizeChart = ({ data, theme }) => {
 };
 
 // --- Calendar Frequency Heatmap (Simplified) ---
-export const MonthlyHeatmap = ({ data, theme }) => {
+export const MonthlyHeatmap = ({ data = [], theme }) => {
     return (
         <ParentSize>
             {({ width, height }) => {
@@ -173,7 +173,7 @@ export const MonthlyHeatmap = ({ data, theme }) => {
                 const rows = 5;
                 const size = Math.min(innerWidth / columns, innerHeight / rows) - 4;
 
-                const maxCount = Math.max(...data.map(d => d.count), 1);
+                const maxCount = Math.max(1, ...data.map(d => d.count));
                 const colorScale = scaleLinear({
                     domain: [0, maxCount],
                     range: [theme === 'dark' ? '#1e293b' : '#f1f5f9', '#3b82f6'],
