@@ -211,7 +211,7 @@ const App = () => {
     const stats = useMemo(() => {
         if (data.length === 0) return {
             currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
-            avgLoanAmount: 0, loansPerMonth: 0, topCategories: [], monthlyStats: [],
+            avgLoanAmount: 0, loansPerMonth: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false
         };
 
@@ -230,6 +230,7 @@ const App = () => {
         const monthsDiff = firstLoan && lastLoan ?
             Math.max(1, Math.ceil((lastLoan.sortDate - firstLoan.sortDate) / (1000 * 60 * 60 * 24 * 30))) : 1;
         const loansPerMonth = loans.length / monthsDiff;
+        const avgMonthlyGiven = totalGiven / monthsDiff;
 
         // Топ категорий (по комментариям)
         const categoryMap = {};
@@ -298,6 +299,7 @@ const App = () => {
             returnRate: totalGiven > 0 ? ((totalReceived / totalGiven) * 100).toFixed(1) : 0,
             avgLoanAmount,
             loansPerMonth: loansPerMonth.toFixed(1),
+            avgMonthlyGiven,
             topCategories,
             monthlyStats,
             debtTrend,
@@ -489,6 +491,10 @@ const App = () => {
                 <div className="card stat-card info">
                     <span className="label">Займов в месяц</span>
                     <span className="value">{stats.loansPerMonth}</span>
+                </div>
+                <div className="card stat-card info">
+                    <span className="label">В среднем в месяц</span>
+                    <span className="value">{formatAmount(stats.avgMonthlyGiven)} <span className="value-symbol">₴</span></span>
                 </div>
                 <div className={`card stat-card ${stats.debtTrend === 'growing' ? 'danger' : stats.debtTrend === 'decreasing' ? 'success' : 'info'}`}>
                     <span className="label">Тренд</span>
