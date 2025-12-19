@@ -26,6 +26,8 @@ const App = () => {
 
     const [chartMode, setChartMode] = useState('debt'); // 'debt' or 'flow'
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+    const [safetyLimit, setSafetyLimit] = useState(localStorage.getItem('safetyLimit') || 50000);
+    const [payoffTargetDate, setPayoffTargetDate] = useState(localStorage.getItem('payoffTargetDate') || null);
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -216,7 +218,8 @@ const App = () => {
             currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
             avgLoanAmount: 0, loansPerMonth: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
-            weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: []
+            weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
+            intervals: { avg: 0, trend: 'stable' }, burndown: [], recurringPatterns: []
         };
 
         const loans = data.filter(t => t.type === 'Дано в долг');
@@ -346,8 +349,38 @@ const App = () => {
         const projectedPayoff = avgReturnPerMonth > 0 ?
             Math.ceil(currentDebt / avgReturnPerMonth) : null;
 
-        // Предупреждение о лимите (больше 100,000)
-        const isOverLimit = currentDebt > 100000;
+        // Анализ интервалов
+        let intervals = [];
+        for (let i = 0; i < loans.length - 1; i++) {
+            const diff = (loans[i].sortDate - loans[i + 1].sortDate) / (1000 * 60 * 60 * 24);
+            intervals.push(diff);
+        }
+        const avgInterval = intervals.length > 0 ? (intervals.reduce((a, b) => a + b, 0) / intervals.length).toFixed(1) : 0;
+        const recentIntervals = intervals.slice(0, 5);
+        const prevIntervals = intervals.slice(5, 10);
+        const intervalTrend = recentIntervals.length > 0 && prevIntervals.length > 0 ?
+            (recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length < prevIntervals.reduce((a, b) => a + b, 0) / prevIntervals.length ? 'decreasing' : 'increasing') : 'stable';
+
+        // План погашения (Burndown)
+        let burndown = [];
+        if (payoffTargetDate) {
+            const target = new Date(payoffTargetDate);
+            const start = new Date();
+            const startDebt = currentDebt;
+            const daysLeft = Math.max(1, (target - start) / (1000 * 60 * 60 * 24));
+
+            for (let i = 0; i <= 10; i++) {
+                const date = new Date(start);
+                date.setDate(date.getDate() + (daysLeft / 10) * i);
+                burndown.push({
+                    date,
+                    debt: Math.max(0, startDebt - (startDebt / 10) * i)
+                });
+            }
+        }
+
+        // Предупреждение о лимите (пользовательский лимит)
+        const isOverLimit = currentDebt > safetyLimit;
 
         return {
             currentDebt,
@@ -366,7 +399,10 @@ const App = () => {
             loanSizeStats: Object.entries(loanSizeBuckets).map(([size, amount]) => ({ size, amount })),
             daysOfMonthData: Object.entries(daysOfMonthMap).map(([day, count]) => ({ day: parseInt(day), count })),
             cumulativeData,
-            forecastData
+            forecastData,
+            intervals: { avg: avgInterval, trend: intervalTrend },
+            burndown,
+            safetyLimit
         };
     }, [data]);
 
@@ -619,6 +655,8 @@ const App = () => {
                                 <DebtChart
                                     data={chartMode === 'debt' ? formattedChartData : stats.cumulativeData}
                                     forecastData={chartMode === 'debt' ? stats.forecastData : []}
+                                    burndownData={chartMode === 'debt' ? stats.burndown : []}
+                                    safetyLimit={chartMode === 'debt' ? safetyLimit : null}
                                     mode={chartMode}
                                     width={width}
                                     height={height}
@@ -628,10 +666,41 @@ const App = () => {
                         </ParentSize>
                     )}
                 </div>
-                {chartMode === 'debt' && <p className="chart-hint">Пунктирная линия — прогноз на основе последних 60 дней</p>}
+                <div className="chart-footer">
+                    {chartMode === 'debt' && <p className="chart-hint">Пунктир — прогноз (60 дн). <span style={{ color: '#f59e0b' }}>Оранжевый пунктир</span> — линия цели.</p>}
+                    <div className="chart-settings">
+                        <div className="setting-item">
+                            <label>Лимит:</label>
+                            <input type="number" value={safetyLimit} onChange={(e) => {
+                                setSafetyLimit(Number(e.target.value));
+                                localStorage.setItem('safetyLimit', e.target.value);
+                            }} />
+                        </div>
+                        <div className="setting-item">
+                            <label>Цель к:</label>
+                            <input type="date" value={payoffTargetDate || ''} onChange={(e) => {
+                                setPayoffTargetDate(e.target.value);
+                                localStorage.setItem('payoffTargetDate', e.target.value);
+                            }} />
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="advanced-grid">
+                <div className="card analytics-card">
+                    <h3>Интенсивность займов</h3>
+                    <div className="interval-display">
+                        <div className="interval-main">
+                            <span className="interval-value">{stats.intervals.avg}</span>
+                            <span className="interval-label">дн. в среднем</span>
+                        </div>
+                        <div className={`interval-trend ${stats.intervals.trend}`}>
+                            {stats.intervals.trend === 'decreasing' ? 'Займы участились ⚠️' : 'Паузы растут ✅'}
+                        </div>
+                    </div>
+                    <p className="chart-hint">Средний перерыв между новыми долгами</p>
+                </div>
                 <div className="card analytics-card">
                     <h3>Активность по дням недели</h3>
                     <div className="chart-box-mini">

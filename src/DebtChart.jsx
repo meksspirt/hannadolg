@@ -30,6 +30,8 @@ const bisectDate = bisector((d) => new Date(d.date)).left;
 const DebtChart = ({
     data,
     forecastData = [],
+    burndownData = [],
+    safetyLimit = null,
     mode = 'debt', // 'debt' or 'flow'
     width,
     height,
@@ -46,7 +48,7 @@ const DebtChart = ({
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    const allData = [...data, ...forecastData];
+    const allData = [...data, ...forecastData, ...burndownData];
 
     // scales
     const dateScale = useMemo(
@@ -64,10 +66,10 @@ const DebtChart = ({
         () =>
             scaleLinear({
                 range: [innerHeight, 0],
-                domain: [0, (max(allData, getMaxValue) || 0) * 1.1],
+                domain: [0, Math.max((max(allData, getMaxValue) || 0), (safetyLimit || 0)) * 1.1],
                 nice: true,
             }),
-        [innerHeight, allData, mode],
+        [innerHeight, allData, mode, safetyLimit],
     );
 
     // tooltip handler
@@ -131,6 +133,14 @@ const DebtChart = ({
                         tickFormat={(v) => `${(v / 1000).toFixed(0)}k`}
                     />
 
+                    {safetyLimit && mode === 'debt' && (
+                        <line
+                            x1={0} x2={innerWidth}
+                            y1={debtScale(safetyLimit)} y2={debtScale(safetyLimit)}
+                            stroke="#ef4444" strokeWidth={1} strokeDasharray="4,4" opacity={0.5}
+                        />
+                    )}
+
                     {mode === 'debt' ? (
                         <>
                             <AreaClosed
@@ -157,6 +167,17 @@ const DebtChart = ({
                                     stroke="#3b82f6"
                                     strokeWidth={2}
                                     strokeDasharray="5,5"
+                                    curve={curveMonotoneX}
+                                />
+                            )}
+                            {burndownData.length > 0 && (
+                                <LinePath
+                                    data={burndownData}
+                                    x={(d) => dateScale(getDate(d)) ?? 0}
+                                    y={(d) => debtScale(getDebtValue(d)) ?? 0}
+                                    stroke="#f59e0b"
+                                    strokeWidth={2}
+                                    strokeDasharray="3,3"
                                     curve={curveMonotoneX}
                                 />
                             )}
