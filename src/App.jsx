@@ -506,7 +506,7 @@ const App = () => {
                 time: {
                     unit: 'month',
                     displayFormats: {
-                        month: 'MMM YYYY'
+                        month: 'MMM yyyy'
                     }
                 },
                 grid: { display: false },
