@@ -71,9 +71,11 @@ const App = () => {
             } else {
                 const err = await res.json();
                 console.error('API Error:', err);
+                alert(`Ошибка загрузки данных: ${err.error}`);
             }
         } catch (e) {
             console.error('Fetch error:', e);
+            alert('Ошибка сети при загрузке данных');
         } finally {
             setLoading(false);
         }
@@ -149,10 +151,12 @@ const App = () => {
                     fetchData();
                 } else {
                     const err = await res.json();
-                    alert('Ошибка сервера: ' + err.error);
+                    console.error('Server error:', err);
+                    alert(`Ошибка сервера: ${err.error}${err.details ? '\n' + err.details : ''}`);
                 }
             } catch (e) {
-                alert('Ошибка сети');
+                console.error('Network error:', e);
+                alert('Ошибка сети при загрузке файла');
             } finally {
                 setUploading(false);
             }
