@@ -46,6 +46,8 @@ const App = () => {
     }, [theme]);
 
     useEffect(() => {
+        // Очищаем старые локальные данные транзакций, чтобы использовать только серверные
+        localStorage.removeItem('hanna-transactions');
         fetchData();
     }, []);
 
@@ -60,24 +62,13 @@ const App = () => {
                 const processedData = processTransactions(result, true);
                 setData(processedData);
                 setIsOnline(true);
-
-                // Сохраняем в localStorage как backup
-                saveToLocalStorage(result);
             } else {
                 throw new Error('Server error');
             }
         } catch (e) {
-            console.warn('Не удалось загрузить с сервера, используем локальные данные:', e);
-
-            // Загружаем из localStorage
-            const localData = loadFromLocalStorage();
-            if (localData.length > 0) {
-                setData(processTransactions(localData, true));
-                setIsOnline(false);
-            } else {
-                setData([]);
-                setIsOnline(false);
-            }
+            console.error('Ошибка загрузки данных:', e);
+            setData([]);
+            setIsOnline(false);
         } finally {
             setLoading(false);
         }
@@ -205,9 +196,9 @@ const App = () => {
                     raw_line: t.rawLine
                 }));
 
-                const addedCount = addToLocalStorage(formatted);
-                alert(`Сохранено локально: ${addedCount} новых транзакций`);
-                setIsOnline(false);
+                const addedCount = formatted.length;
+                alert(`Успешно загружено: ${addedCount} транзакций`);
+                setIsOnline(true);
                 fetchData();
             } finally {
                 setUploading(false);
@@ -222,7 +213,11 @@ const App = () => {
             avgLoanAmount: 0, loansPerMonth: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
             weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
-            intervals: { avg: 0, trend: 'stable' }, burndown: [], recurringPatterns: []
+            simulatorData: [], benchmarks: { monthlyChange: 0, intervalChange: 0 },
+            badHabits: { total: 0, potentialSavings: 0 }, achievements: [], plannedPayments: [],
+            inflationProfit: 0, stressScore: 0, joyBudget: 0, anomalies: [],
+            milestones: [], strategies: { snowball: [], avalanche: [] },
+            intervals: { avg: 0, trend: 'stable' }, burndown: [], recurringPatterns: [], safetyLimit
         };
 
         const loans = data.filter(t => t.type === 'Дано в долг');

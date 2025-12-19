@@ -162,7 +162,7 @@ const DebtChart = ({
                                 strokeWidth={3}
                                 curve={curveMonotoneX}
                             />
-                            {forecastData.length > 0 && (
+                            {forecastData.length > 0 && data.length > 0 && (
                                 <LinePath
                                     data={[data[data.length - 1], ...forecastData]}
                                     x={(d) => dateScale(getDate(d)) ?? 0}
@@ -184,7 +184,7 @@ const DebtChart = ({
                                     curve={curveMonotoneX}
                                 />
                             )}
-                            {simulatorData.length > 0 && (
+                            {simulatorData.length > 0 && data.length > 0 && (
                                 <LinePath
                                     data={[data[data.length - 1], ...simulatorData]}
                                     x={(d) => dateScale(getDate(d)) ?? 0}
