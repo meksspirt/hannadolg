@@ -242,7 +242,11 @@ const App = () => {
         // Топ категорий (по комментариям)
         const categoryMap = {};
         const weekdayMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-        const loanSizeBuckets = { small: 0, medium: 0, large: 0 };
+        const loanSizeBuckets = {
+            small: { amount: 0, count: 0 },
+            medium: { amount: 0, count: 0 },
+            large: { amount: 0, count: 0 }
+        };
         const daysOfMonthMap = Array(31).fill(0).reduce((acc, _, i) => ({ ...acc, [i + 1]: 0 }), {});
 
         loans.forEach(t => {
@@ -259,9 +263,16 @@ const App = () => {
             weekdayMap[day] += t.amount;
 
             // Размеры займов
-            if (t.amount < 500) loanSizeBuckets.small += t.amount;
-            else if (t.amount <= 2000) loanSizeBuckets.medium += t.amount;
-            else loanSizeBuckets.large += t.amount;
+            if (t.amount < 500) {
+                loanSizeBuckets.small.amount += t.amount;
+                loanSizeBuckets.small.count++;
+            } else if (t.amount <= 2000) {
+                loanSizeBuckets.medium.amount += t.amount;
+                loanSizeBuckets.medium.count++;
+            } else {
+                loanSizeBuckets.large.amount += t.amount;
+                loanSizeBuckets.large.count++;
+            }
 
             // Дни месяца (для тепловой карты)
             const date = t.sortDate.getDate();
@@ -537,7 +548,7 @@ const App = () => {
             projectedPayoff,
             isOverLimit,
             weekdayStats: Object.entries(weekdayMap).map(([day, amount]) => ({ day: parseInt(day), amount })),
-            loanSizeStats: Object.entries(loanSizeBuckets).map(([size, amount]) => ({ size, amount })),
+            loanSizeStats: Object.entries(loanSizeBuckets).map(([size, data]) => ({ size, ...data })),
             daysOfMonthData: Object.entries(daysOfMonthMap).map(([day, count]) => ({ day: parseInt(day), count })),
             cumulativeData,
             forecastData,
@@ -613,72 +624,141 @@ const App = () => {
         else if (format === 'report') {
             const reportHtml = `
                 <!DOCTYPE html>
-                <html>
+                <html lang="ru">
                 <head>
                     <meta charset="UTF-8">
-                    <title>Отчет по долгам Ганны Є.</title>
+                    <title>Отчет: Долги Ганны Є.</title>
                     <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        .header { text-align: center; margin-bottom: 30px; }
-                        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
-                        .stat-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
-                        .stat-label { font-size: 12px; color: #666; }
-                        .stat-value { font-size: 18px; font-weight: bold; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                        th { background-color: #f5f5f5; }
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+                        body { 
+                            font-family: 'Inter', sans-serif; 
+                            line-height: 1.5; 
+                            color: #1e293b; 
+                            margin: 0; 
+                            padding: 30px;
+                            background: #f8fafc;
+                        }
+                        .header { 
+                            display: flex; 
+                            justify-content: space-between; 
+                            align-items: center; 
+                            border-bottom: 2px solid #e2e8f0; 
+                            padding-bottom: 20px; 
+                            margin-bottom: 30px;
+                        }
+                        .header h1 { margin: 0; font-size: 22px; font-weight: 800; color: #0f172a; }
+                        .header p { margin: 5px 0 0; color: #64748b; font-size: 13px; }
+                        .current-debt { text-align: right; }
+                        .current-debt h2 { margin: 0; font-size: 24px; color: #3b82f6; font-weight: 800; }
+                        .stats-grid { 
+                            display: grid; 
+                            grid-template-columns: repeat(4, 1fr); 
+                            gap: 15px; 
+                            margin-bottom: 30px;
+                        }
+                        .stat-box { 
+                            background: white; 
+                            padding: 15px; 
+                            border-radius: 10px; 
+                            border: 1px solid #e2e8f0;
+                            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                        }
+                        .stat-box .label { font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: block; }
+                        .stat-box .value { font-size: 18px; font-weight: 800; color: #0f172a; }
+                        .section { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px; }
+                        .section h3 { margin: 0 0 15px; font-size: 16px; font-weight: 700; border-left: 4px solid #3b82f6; padding-left: 10px; }
+                        .flex-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+                        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                        th { background: #f1f5f9; text-align: left; padding: 10px; color: #475569; font-weight: 700; border-bottom: 2px solid #e2e8f0; }
+                        td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+                        .badge { padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+                        .badge.in { background: #dcfce7; color: #166534; }
+                        .badge.out { background: #fee2e2; color: #991b1b; }
+                        @media print {
+                            body { background: white; padding: 0; }
+                            .section { border: none; padding: 0; box-shadow: none; margin-bottom: 30px; }
+                        }
                     </style>
                 </head>
                 <body>
                     <div class="header">
-                        <h1>Отчет по долгам Ганны Є.</h1>
-                        <p>Сгенерировано: ${new Date().toLocaleDateString('ru')}</p>
-                    </div>
-                    
-                    <div class="stats">
-                        <div class="stat-card">
-                            <div class="stat-label">Текущий долг</div>
-                            <div class="stat-value">${formatAmount(stats.currentDebt)} ₴</div>
+                        <div>
+                            <h1>Финансовый Анализ: Долги Ганны</h1>
+                            <p>Сформировано: ${new Date().toLocaleString('ru')}</p>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Дано всего</div>
-                            <div class="stat-value">${formatAmount(stats.totalGiven)} ₴</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Вернула всего</div>
-                            <div class="stat-value">${formatAmount(stats.totalReceived)} ₴</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Процент возврата</div>
-                            <div class="stat-value">${stats.returnRate}%</div>
+                        <div class="current-debt">
+                            <h2>${formatAmount(stats.currentDebt)} ₴</h2>
+                            <p style="margin:0; font-size:12px; color:#64748b">Общий остаток</p>
                         </div>
                     </div>
-                    
-                    <table>
-                        <thead>
-                            <tr><th>Дата</th><th>Комментарий</th><th>Тип</th><th>Сумма</th><th>Остаток</th></tr>
-                        </thead>
-                        <tbody>
-                            ${data.map(t => `
-                                <tr>
-                                    <td>${t.formattedDate}</td>
-                                    <td>${t.comment}</td>
-                                    <td>${t.type}</td>
-                                    <td>${formatAmount(t.amount)} ₴</td>
-                                    <td>${formatAmount(t.currentDebt)} ₴</td>
-                                </tr>
+
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <span class="label">Выдано всего</span>
+                            <div class="value">${formatAmount(stats.totalGiven)} ₴</div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="label">Вернула всего</span>
+                            <div class="value">${formatAmount(stats.totalReceived)} ₴</div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="label">Темп возврата</span>
+                            <div class="value">${stats.returnRate}%</div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="label">Упущенная выгода</span>
+                            <div class="value" style="color:#ef4444">-${formatAmount(stats.opportunityCost)} ₴</div>
+                        </div>
+                    </div>
+
+                    <div class="flex-grid">
+                        <div class="section">
+                            <h3>Топ категорий трат</h3>
+                            ${stats.topCategories.map(c => `
+                                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                                    <span style="font-weight:600">${c.name}</span>
+                                    <span style="font-weight:700">${formatAmount(c.amount)} ₴</span>
+                                </div>
                             `).join('')}
-                        </tbody>
-                    </table>
+                        </div>
+                        <div class="section">
+                            <h3>Лидеры по надежности</h3>
+                            ${stats.reliabilityRanking.slice(0, 5).map(r => `
+                                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                                    <span style="font-weight:600">${r.name}</span>
+                                    <span class="badge ${r.score > 70 ? 'in' : 'out'}">${r.score} баллов</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h3>Реестр транзакций</h3>
+                        <table>
+                            <thead>
+                                <tr><th>Дата</th><th>Детали</th><th>Тип</th><th>Сумма</th><th>Баланс</th></tr>
+                            </thead>
+                            <tbody>
+                                ${data.slice(0, 100).map(t => `
+                                    <tr>
+                                        <td>${t.formattedDate}</td>
+                                        <td>${t.comment}</td>
+                                        <td><span class="badge ${t.type === 'Возврат' ? 'in' : 'out'}">${t.type}</span></td>
+                                        <td style="font-weight:700">${formatAmount(t.amount)} ₴</td>
+                                        <td>${formatAmount(t.currentDebt)} ₴</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        ${data.length > 100 ? `<p style="text-align:center; font-size:10px; color:#94a3b8; margin-top:10px">Отображены последние 100 транзакций. Полный список доступен в CSV/JSON.</p>` : ''}
+                    </div>
+                    <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
                 </body>
                 </html>
             `;
-
-            const blob = new Blob([reportHtml], { type: 'text/html' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `отчет_долги_ганны_${timestamp}.html`;
-            link.click();
+            const win = window.open('', '_blank');
+            win.document.write(reportHtml);
+            win.document.close();
         }
     };
 

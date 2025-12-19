@@ -86,14 +86,19 @@ export const WeekdayChart = ({ data = [], theme }) => {
     );
 };
 
-// --- Loan Size Distribution ---
+// --- Loan Size Distribution (Improved) ---
 export const LoanSizeChart = ({ data = [], theme }) => {
     const labels = { small: '< 500', medium: '500-2k', large: '> 2k' };
+    const formatAmount = (num) => {
+        if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+        return num.toFixed(0);
+    };
+
     return (
         <ParentSize>
             {({ width, height }) => {
                 if (width < 10) return null;
-                const margin = { top: 20, right: 20, bottom: 50, left: 60 };
+                const margin = { top: 30, right: 20, bottom: 50, left: 60 };
                 const xMax = width - margin.left - margin.right;
                 const yMax = height - margin.top - margin.bottom;
 
@@ -104,7 +109,7 @@ export const LoanSizeChart = ({ data = [], theme }) => {
                 });
                 const yScale = scaleLinear({
                     range: [yMax, 0],
-                    domain: [0, Math.max(0, ...data.map(d => d.amount)) * 1.1],
+                    domain: [0, Math.max(0, ...data.map(d => d.amount)) * 1.25],
                 });
 
                 const textColor = theme === 'dark' ? '#cbd5e1' : '#475569';
@@ -119,16 +124,42 @@ export const LoanSizeChart = ({ data = [], theme }) => {
                                 const barHeight = yMax - yScale(d.amount);
                                 const barX = xScale(label);
                                 const barY = yMax - barHeight;
+                                const barColor = d.size === 'large' ? '#ef4444' : d.size === 'medium' ? '#f59e0b' : '#3b82f6';
+
                                 return (
-                                    <Bar
-                                        key={i}
-                                        x={barX}
-                                        y={barY}
-                                        width={barWidth}
-                                        height={barHeight}
-                                        fill={d.size === 'large' ? '#ef4444' : d.size === 'medium' ? '#f59e0b' : '#3b82f6'}
-                                        rx={4}
-                                    />
+                                    <Group key={i}>
+                                        <Bar
+                                            x={barX}
+                                            y={barY}
+                                            width={barWidth}
+                                            height={barHeight}
+                                            fill={barColor}
+                                            rx={4}
+                                        >
+                                            <title>{`Диапазон: ${label}\nСумма: ${d.amount.toLocaleString()} ₴\nКоличество: ${d.count} транз.`}</title>
+                                        </Bar>
+                                        <text
+                                            x={barX + barWidth / 2}
+                                            y={barY - 8}
+                                            fontSize={11}
+                                            fontWeight={700}
+                                            textAnchor="middle"
+                                            fill={textColor}
+                                        >
+                                            {formatAmount(d.amount)}
+                                        </text>
+                                        <text
+                                            x={barX + barWidth / 2}
+                                            y={barY + 18}
+                                            fontSize={10}
+                                            fontWeight={800}
+                                            textAnchor="middle"
+                                            fill="#ffffff"
+                                            style={{ pointerEvents: 'none' }}
+                                        >
+                                            {`${d.count} шт.`}
+                                        </text>
+                                    </Group>
                                 );
                             })}
                             <AxisBottom
