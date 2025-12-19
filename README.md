@@ -17,11 +17,12 @@
    ```
 
 2. **Настройте базу данных**:
-   - Создайте проект в [Supabase](https://supabase.com).
-   - Выполните SQL для создания таблицы (см. ниже).
-   - Создайте файл `.env` в корне и добавьте:
-     ```env
-     DATABASE_URL=ваша_строка_подключения
+   - Создайте проект в [Supabase](https://supabase.com)
+   - Выполните SQL из файла `supabase-setup.sql` в SQL Editor
+   - В Vercel добавьте Environment Variables:
+     ```
+     SUPABASE_URL=https://ваш-проект-id.supabase.co
+     SUPABASE_ANON_KEY=ваш_anon_ключ
      ```
 
 3. **Запустите сервер разработки**:

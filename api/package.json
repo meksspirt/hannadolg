@@ -2,5 +2,8 @@
     "name": "hannadolg-api",
     "version": "1.0.0",
     "description": "Vercel serverless functions for transaction management",
-    "type": "module"
+    "type": "module",
+    "dependencies": {
+        "@supabase/supabase-js": "^2.39.0"
+    }
 }
