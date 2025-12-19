@@ -1465,3 +1465,30 @@ td {
     color: var(--danger);
     margin: 10px 0;
 }
+
+/* Currency Hedge */
+.currency-main {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1rem;
+}
+
+.c-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.c-val {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--primary);
+    line-height: 1;
+}
+
+.c-lab {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: 4px;
+}

@@ -37,6 +37,7 @@ const App = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
+    const [exchangeRates, setExchangeRates] = useState({ usd: 41.5, eur: 44.8 });
     const [isOnline, setIsOnline] = useState(true);
     const itemsPerPage = 10;
 
@@ -49,7 +50,22 @@ const App = () => {
         // Очищаем старые локальные данные транзакций, чтобы использовать только серверные
         localStorage.removeItem('hanna-transactions');
         fetchData();
+        fetchRates();
     }, []);
+
+    const fetchRates = async () => {
+        try {
+            const res = await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
+            if (res.ok) {
+                const data = await res.json();
+                const usd = data.find(c => c.cc === 'USD')?.rate || 41.5;
+                const eur = data.find(c => c.cc === 'EUR')?.rate || 44.8;
+                setExchangeRates({ usd, eur });
+            }
+        } catch (e) {
+            console.error('Rates fetch error:', e);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -450,8 +466,11 @@ const App = () => {
             };
         }).slice(0, 5);
 
-        // 6. Инфляционный профит (упрощенный)
-        const inflationProfit = currentDebt * (inflationRate / 100) * (monthsDiff / 12);
+        // 6. Учет инфляции (Real Value)
+        const monthlyInflation = inflationRate / 100 / 12;
+        const realDebtValue = currentDebt / Math.pow(1 + monthlyInflation, monthsDiff);
+        const inflationProfit = Math.max(0, currentDebt - realDebtValue);
+        const inflationGainPercent = currentDebt > 0 ? ((inflationProfit / currentDebt) * 100).toFixed(1) : 0;
 
         // 7. Температура стресса (0-100)
         const debtToIncomeRatio = monthlyIncome > 0 ? (currentDebt / monthlyIncome) : 0;
@@ -570,7 +589,15 @@ const App = () => {
             liberty: { percentage: libertyPercentage, value: libertyValue },
             opportunityCost,
             reliabilityRanking,
-            staleLoans
+            staleLoans,
+            realValue: { nominal: currentDebt, real: realDebtValue, gain: inflationProfit, percent: inflationGainPercent },
+            currency: {
+                usd: currentDebt / exchangeRates.usd,
+                eur: currentDebt / exchangeRates.eur,
+                rates: exchangeRates,
+                // Гипотетический убыток если курс вырос с 40.0 до текущего
+                hedgeGain: (currentDebt / 40.0) - (currentDebt / exchangeRates.usd)
+            }
         };
     }, [data, safetyLimit, payoffTargetDate, extraPayment, monthlyIncome, inflationRate]);
 
@@ -998,7 +1025,25 @@ const App = () => {
                 <div className="card metric-card inflation-card">
                     <h3>Инфляционный профит 📉</h3>
                     <div className="profit-value">+{formatAmount(stats.inflationProfit)} ₴</div>
-                    <p className="chart-hint">На столько "подешевел" ваш долг за всё время</p>
+                    <p className="chart-hint">
+                        Реальный вес долга: <strong>{formatAmount(stats.realValue.real)} ₴</strong><br />
+                        Инфляция «помогла» погасить <b>{stats.realValue.percent}%</b>
+                    </p>
+                </div>
+                <div className="card metric-card currency-card">
+                    <h3>Валютный хедж 💵</h3>
+                    <div className="currency-main">
+                        <div className="c-item">
+                            <span className="c-val">${formatAmount(stats.currency.usd)}</span>
+                            <span className="c-lab">USD (@{stats.currency.rates.usd.toFixed(2)})</span>
+                        </div>
+                    </div>
+                    <p className="chart-hint">
+                        Эквивалент в €: <b>{formatAmount(stats.currency.eur)} €</b><br />
+                        Курсовая разница: <span style={{ color: stats.currency.hedgeGain > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                            {stats.currency.hedgeGain > 0 ? '+' : ''}{stats.currency.hedgeGain.toFixed(2)} USD
+                        </span> (vs 40.0)
+                    </p>
                 </div>
             </div>
 
