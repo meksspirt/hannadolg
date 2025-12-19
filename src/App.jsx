@@ -449,27 +449,99 @@ const App = () => {
         }
     };
 
-    const chartData = {
-        labels: [...data].reverse().map(d => d.sortDate),
-        datasets: [{
-            label: 'Долг',
-            data: [...data].reverse().map(d => d.currentDebt),
-            borderColor: '#60a5fa',
-            backgroundColor: 'rgba(96, 165, 250, 0.1)',
-            fill: true,
-            tension: 0.2,
-            pointRadius: 3
-        }]
-    };
+    const chartData = useMemo(() => {
+        if (data.length === 0) return { labels: [], datasets: [] };
+
+        // Группируем данные по датам, чтобы убрать "дрожание" графика
+        const dailyData = {};
+        [...data].forEach(d => {
+            const dateKey = d.formattedDate; // dd.mm.yyyy
+            if (!dailyData[dateKey]) {
+                dailyData[dateKey] = {
+                    date: d.sortDate,
+                    debt: d.currentDebt
+                };
+            }
+        });
+
+        const sortedDays = Object.values(dailyData).sort((a, b) => a.date - b.date);
+
+        return {
+            labels: sortedDays.map(d => d.date),
+            datasets: [{
+                label: 'Долг',
+                data: sortedDays.map(d => d.debt),
+                borderColor: '#3b82f6',
+                borderWidth: 3,
+                backgroundColor: (context) => {
+                    const chart = context.chart;
+                    const { ctx, chartArea } = chart;
+                    if (!chartArea) return null;
+                    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.25)');
+                    gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+                    return gradient;
+                },
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#3b82f6',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+            }]
+        };
+    }, [data]);
 
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
-        scales: {
-            x: { type: 'time', time: { unit: 'month' }, grid: { display: false }, ticks: { color: '#94a3b8' } },
-            y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        interaction: {
+            intersect: false,
+            mode: 'index',
         },
-        plugins: { legend: { display: false } }
+        scales: {
+            x: {
+                type: 'time',
+                time: {
+                    unit: 'month',
+                    displayFormats: {
+                        month: 'MMM YYYY'
+                    }
+                },
+                grid: { display: false },
+                ticks: {
+                    color: '#94a3b8',
+                    font: { size: 11 }
+                }
+            },
+            y: {
+                ticks: {
+                    color: '#94a3b8',
+                    font: { size: 11 },
+                    callback: (value) => formatAmount(value)
+                },
+                grid: {
+                    color: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                    drawBorder: false
+                }
+            }
+        },
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: theme === 'dark' ? '#1e293b' : '#fff',
+                titleColor: theme === 'dark' ? '#f1f5f9' : '#1e293b',
+                bodyColor: theme === 'dark' ? '#f1f5f9' : '#1e293b',
+                borderColor: 'rgba(59, 130, 246, 0.3)',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: false,
+                callbacks: {
+                    label: (context) => `Долг: ${formatAmount(context.raw)} ₴`
+                }
+            }
+        }
     };
 
     return (
