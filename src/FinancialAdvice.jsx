@@ -2,11 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { Lightbulb, TrendingDown, Target, ShieldCheck, Zap, RefreshCw } from 'lucide-react';
 
 const FinancialAdvice = ({ stats }) => {
-    const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-    React.useEffect(() => {
-        setRefreshTrigger(Math.random());
-    }, []);
+    // Используем функцию-инициализатор, чтобы рандом сработал один раз при загрузке
+    // и не вызывал повторный рендер через useEffect
+    const [refreshTrigger, setRefreshTrigger] = useState(() => Math.random());
 
     const advice = useMemo(() => {
         const generalPool = [
