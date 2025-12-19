@@ -233,10 +233,16 @@ const App = () => {
             </div>
 
             <div className="card upload-card">
-                <input type="file" id="file" onChange={handleFileUpload} style={{ display: 'none' }} />
+                <input
+                    type="file"
+                    id="file"
+                    onChange={handleFileUpload}
+                    style={{ display: 'none' }}
+                    accept=".csv"
+                />
                 <label htmlFor="file" className="upload-btn">
                     <Upload size={20} />
-                    {uploading ? 'Загрузка...' : 'Выбрать CSV файл'}
+                    {uploading ? 'Загрузка...' : 'Выбрать CSV таблицу'}
                 </label>
             </div>
 
