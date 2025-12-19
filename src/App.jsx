@@ -10,33 +10,9 @@ import {
     WifiOff
 } from 'lucide-react';
 import { loadFromLocalStorage, saveToLocalStorage, addToLocalStorage } from './localStorage-storage.js';
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-    TimeScale,
-    Filler
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
-import 'chartjs-adapter-date-fns';
+import ParentSize from '@visx/responsive/lib/components/ParentSize';
+import DebtChart from './DebtChart';
 import { format } from 'date-fns';
-
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-    TimeScale,
-    Filler
-);
 
 const App = () => {
     const formatAmount = (num) => {
@@ -449,13 +425,12 @@ const App = () => {
         }
     };
 
-    const chartData = useMemo(() => {
-        if (data.length === 0) return { labels: [], datasets: [] };
+    const formattedChartData = useMemo(() => {
+        if (data.length === 0) return [];
 
-        // Группируем данные по датам, чтобы убрать "дрожание" графика
         const dailyData = {};
         [...data].forEach(d => {
-            const dateKey = d.formattedDate; // dd.mm.yyyy
+            const dateKey = d.formattedDate;
             if (!dailyData[dateKey]) {
                 dailyData[dateKey] = {
                     date: d.sortDate,
@@ -464,85 +439,8 @@ const App = () => {
             }
         });
 
-        const sortedDays = Object.values(dailyData).sort((a, b) => a.date - b.date);
-
-        return {
-            labels: sortedDays.map(d => d.date),
-            datasets: [{
-                label: 'Долг',
-                data: sortedDays.map(d => d.debt),
-                borderColor: '#3b82f6',
-                borderWidth: 3,
-                backgroundColor: (context) => {
-                    const chart = context.chart;
-                    const { ctx, chartArea } = chart;
-                    if (!chartArea) return null;
-                    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.25)');
-                    gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
-                    return gradient;
-                },
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 6,
-                pointBackgroundColor: '#3b82f6',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-            }]
-        };
+        return Object.values(dailyData).sort((a, b) => a.date - b.date);
     }, [data]);
-
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            intersect: false,
-            mode: 'index',
-        },
-        scales: {
-            x: {
-                type: 'time',
-                time: {
-                    unit: 'month',
-                    displayFormats: {
-                        month: 'MMM yyyy'
-                    }
-                },
-                grid: { display: false },
-                ticks: {
-                    color: '#94a3b8',
-                    font: { size: 11 }
-                }
-            },
-            y: {
-                ticks: {
-                    color: '#94a3b8',
-                    font: { size: 11 },
-                    callback: (value) => formatAmount(value)
-                },
-                grid: {
-                    color: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                    drawBorder: false
-                }
-            }
-        },
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: theme === 'dark' ? '#1e293b' : '#fff',
-                titleColor: theme === 'dark' ? '#f1f5f9' : '#1e293b',
-                bodyColor: theme === 'dark' ? '#f1f5f9' : '#1e293b',
-                borderColor: 'rgba(59, 130, 246, 0.3)',
-                borderWidth: 1,
-                padding: 12,
-                displayColors: false,
-                callbacks: {
-                    label: (context) => `Долг: ${formatAmount(context.raw)} ₴`
-                }
-            }
-        }
-    };
 
     return (
         <div className="container">
@@ -639,7 +537,18 @@ const App = () => {
             <div className="card chart-card">
                 <h3>Динамика долга</h3>
                 <div className="chart-box">
-                    {data.length > 0 && <Line data={chartData} options={chartOptions} />}
+                    {formattedChartData.length > 0 && (
+                        <ParentSize>
+                            {({ width, height }) => (
+                                <DebtChart
+                                    data={formattedChartData}
+                                    width={width}
+                                    height={height}
+                                    theme={theme}
+                                />
+                            )}
+                        </ParentSize>
+                    )}
                 </div>
             </div>
 
