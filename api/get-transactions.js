@@ -1,40 +1,24 @@
-const { Pool } = require('pg');
+import { Pool } from 'pg';
 
-module.exports = async (req, res) => {
-    // CORS
+export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-
-    const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-
-    if (!connectionString) {
-        return res.status(500).json({
-            error: "Конфигурация базы данных отсутствует. Проверьте переменную DATABASE_URL или POSTGRES_URL в Vercel.",
-            envKeys: Object.keys(process.env).filter(k => k.includes('URL') || k.includes('POSTGRES'))
-        });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
 
     const pool = new Pool({
-        connectionString: connectionString,
-        ssl: connectionString.includes('supabase') ? { rejectUnauthorized: false } : false
+        connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
     });
 
     try {
-        const result = await pool.query('SELECT * FROM transactions ORDER BY created_date DESC');
+        const result = await pool.query('SELECT * FROM transactions ORDER BY created_date ASC');
         res.status(200).json(result.rows);
     } catch (error) {
-        console.error('Database query error:', error);
-        res.status(500).json({
-            error: "Ошибка БД: " + error.message,
-            hint: "Убедитесь, что таблица 'transactions' создана в базе данных через SQL Editor."
-        });
+        console.error(error);
+        res.status(500).json({ error: error.message });
     } finally {
         await pool.end();
     }
-};
+}

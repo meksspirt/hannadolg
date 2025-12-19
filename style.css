@@ -1,29 +1,20 @@
 :root {
-    /* Светлая тема */
     --bg: #f8fafc;
     --card: #ffffff;
     --text: #1e293b;
     --text-muted: #64748b;
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
     --border: #e2e8f0;
-    --danger: #ef4444;
+    --primary: #3b82f6;
     --success: #22c55e;
-    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --danger: #ef4444;
 }
 
 .dark-theme {
-    /* Темная тема */
     --bg: #0f172a;
     --card: #1e293b;
-    --text: #f8fafc;
+    --text: #f1f5f9;
     --text-muted: #94a3b8;
-    --primary: #6366f1;
-    --primary-hover: #818cf8;
     --border: #334155;
-    --danger: #f87171;
-    --success: #4ade80;
-    --shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
 }
 
 * {
@@ -34,10 +25,9 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: var(--bg);
+    background: var(--bg);
     color: var(--text);
-    line-height: 1.5;
-    transition: background-color 0.3s, color 0.3s;
+    transition: 0.2s;
 }
 
 .container {
@@ -46,122 +36,95 @@ body {
     padding: 2rem 1rem;
 }
 
-/* Header */
-header {
+.main-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: start;
     margin-bottom: 2rem;
 }
 
-h1 {
-    font-size: 1.875rem;
-    font-weight: 700;
+.subtitle {
+    color: var(--text-muted);
+    font-size: 0.9rem;
 }
 
 .theme-toggle {
     background: var(--card);
     border: 1px solid var(--border);
+    color: var(--text);
     padding: 8px;
     border-radius: 50%;
     cursor: pointer;
-    color: var(--text);
-    box-shadow: var(--shadow);
 }
 
-/* Cards */
 .card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.5rem;
-    box-shadow: var(--shadow);
     margin-bottom: 1.5rem;
 }
 
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
 }
 
-.stat-item {
-    display: flex;
-    flex-direction: column;
-}
-
-.stat-label {
-    font-size: 0.875rem;
+.stat-card .label {
+    display: block;
     color: var(--text-muted);
+    font-size: 0.85rem;
     margin-bottom: 0.5rem;
 }
 
-.stat-value {
+.stat-card .value {
     font-size: 1.5rem;
     font-weight: 700;
 }
 
-.stat-value.danger {
+.stat-card.danger .value {
     color: var(--danger);
 }
 
-.stat-value.success {
+.stat-card.success .value {
     color: var(--success);
 }
 
-/* Upload Area */
-.upload-area {
-    border: 2px dashed var(--border);
-    border-radius: 12px;
-    padding: 2rem;
+.upload-card {
     text-align: center;
-    transition: all 0.2s;
+    border: 2px dashed var(--border);
 }
 
-.upload-area:hover {
-    border-color: var(--primary);
-    background: rgba(79, 70, 229, 0.05);
-}
-
-.file-input-label {
+.upload-btn {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     background: var(--primary);
     color: white;
-    padding: 12px 24px;
+    padding: 10px 20px;
     border-radius: 8px;
     cursor: pointer;
     font-weight: 600;
-    transition: background 0.2s;
 }
 
-.file-input-label:hover {
-    background: var(--primary-hover);
+.chart-box {
+    height: 300px;
+    margin-top: 1rem;
 }
 
-/* Controls & Search */
-.controls {
+.list-header {
     display: flex;
+    justify-content: space-between;
     gap: 1rem;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
 }
 
-.search-container {
+.search-wrap {
     position: relative;
     flex: 1;
-    min-width: 250px;
-}
-
-.search-box {
-    width: 100%;
-    padding: 10px 16px 10px 40px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--card);
-    color: var(--text);
+    min-width: 280px;
 }
 
 .search-icon {
@@ -172,80 +135,104 @@ h1 {
     color: var(--text-muted);
 }
 
-.filter-group {
+.search-wrap input {
+    width: 100%;
+    padding: 10px 12px 10px 40px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+}
+
+.filter-tabs {
     display: flex;
     background: var(--border);
     padding: 4px;
     border-radius: 8px;
 }
 
-.filter-btn {
-    padding: 6px 16px;
+.filter-tabs button {
     border: none;
     background: transparent;
-    color: var(--text-muted);
+    padding: 6px 14px;
     border-radius: 6px;
+    color: var(--text-muted);
     cursor: pointer;
     font-weight: 500;
 }
 
-.filter-btn.active {
+.filter-tabs button.active {
     background: var(--card);
     color: var(--primary);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Table */
-.table-container {
+.table-wrap {
     overflow-x: auto;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
+    margin-top: 0.5rem;
 }
 
 th {
     text-align: left;
     padding: 12px;
     color: var(--text-muted);
-    font-weight: 500;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
 }
 
 td {
     padding: 12px;
     border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
 }
 
-.badge {
+.debt-cell {
+    font-weight: 700;
+}
+
+.type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
     font-weight: 600;
 }
 
-.badge.success {
+.type-badge.in {
     background: rgba(34, 197, 94, 0.1);
     color: var(--success);
 }
 
-.badge.danger {
+.type-badge.out {
     background: rgba(239, 68, 68, 0.1);
     color: var(--danger);
 }
 
-/* Chart Area */
-.chart-container {
-    height: 350px;
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
 }
 
-@media (max-width: 640px) {
-    .controls {
-        flex-direction: column;
-    }
+.pagination button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+}
 
-    .search-container {
-        width: 100%;
-    }
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }

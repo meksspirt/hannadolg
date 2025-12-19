@@ -1,36 +1,20 @@
-const { Pool } = require('pg');
+import { Pool } from 'pg';
 
-module.exports = async (req, res) => {
-    // CORS
+export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: "Method not allowed" });
-    }
-
-    const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-    if (!connectionString) {
-        return res.status(500).json({ error: "База данных не настроена (DATABASE_URL/POSTGRES_URL)" });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const pool = new Pool({
-        connectionString: connectionString,
-        ssl: connectionString.includes('supabase') ? { rejectUnauthorized: false } : false
+        connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
     });
 
-    const transactions = req.body;
-    if (!Array.isArray(transactions)) {
-        return res.status(400).json({ error: "Invalid data format" });
-    }
-
     try {
+        const transactions = req.body;
         await pool.query('BEGIN');
 
         const queryText = `
@@ -53,15 +37,11 @@ module.exports = async (req, res) => {
         }
 
         await pool.query('COMMIT');
-        res.status(200).json({ message: `Successfully processed ${transactions.length} items` });
+        res.status(200).json({ success: true });
     } catch (error) {
         await pool.query('ROLLBACK');
-        console.error('Transaction error:', error);
-        res.status(500).json({
-            error: "Ошибка сохранения в БД: " + error.message,
-            detail: error.code === '42P01' ? "Таблица 'transactions' не найдена. Вы точно создали её в SQL Editor?" : "Проверьте права доступа и структуру таблицы."
-        });
+        res.status(500).json({ error: error.message });
     } finally {
         await pool.end();
     }
-};
+}
