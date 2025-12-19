@@ -120,12 +120,17 @@ const App = () => {
         const file = e.target.files[0];
         if (!file) return;
 
+        console.log('Начинаю обработку файла:', file.name);
+
         const reader = new FileReader();
         reader.onload = async (event) => {
             const text = event.target.result;
             const parsed = parseCsvLocal(text);
+
+            console.log('Результат парсинга (обнаружено строк):', parsed.length);
+
             if (parsed.length === 0) {
-                alert('Транзакций для "Ганна Є." не обнаружено.');
+                alert('Транзакций для "Ганна Є." не обнаружено. Проверьте, что в файле есть это имя в колонке "Плательщик/Получатель" и есть категория "Долги".');
                 return;
             }
 
@@ -137,11 +142,14 @@ const App = () => {
                     body: JSON.stringify(parsed)
                 });
                 if (res.ok) {
-                    alert('Данные синхронизированы!');
+                    alert('Данные успешно синхронизированы!');
                     fetchData();
+                } else {
+                    throw new Error('Сервер вернул ошибку ' + res.status);
                 }
             } catch (e) {
-                alert('Ошибка при сохранении, показываем локально');
+                console.error('Ошибка сохранения:', e);
+                alert('Ошибка при сохранении в облако. Показываю данные локально.');
                 setData(processTransactions(parsed, false));
             } finally {
                 setUploading(false);
@@ -151,13 +159,17 @@ const App = () => {
     };
 
     const parseCsvLocal = (csvText) => {
-        const lines = csvText.split('\n').slice(1);
+        const lines = csvText.split(/\r?\n/).slice(1);
         const targetName = "Ганна Є.";
         const debtCategory = "Долги";
 
         return lines.map(line => {
             if (!line.trim()) return null;
-            const columns = line.split(';');
+
+            // Авто-определение разделителя (запятая или точка с запятой)
+            const delimiter = line.includes(';') ? ';' : ',';
+            const columns = line.split(delimiter);
+
             const clean = columns.map(col => col.replace(/"/g, '').trim());
             if (clean.length < 12) return null;
 
@@ -165,7 +177,10 @@ const App = () => {
             const incomeAcc = clean[7];
             const outcomeAcc = clean[4];
 
-            if (payee.includes(targetName) && (incomeAcc.includes(debtCategory) || outcomeAcc.includes(debtCategory))) {
+            const matchesName = payee.toLowerCase().includes(targetName.toLowerCase());
+            const matchesCategory = incomeAcc.includes(debtCategory) || outcomeAcc.includes(debtCategory);
+
+            if (matchesName && matchesCategory) {
                 return {
                     date: clean[0],
                     categoryName: clean[1],
