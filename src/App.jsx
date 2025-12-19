@@ -235,7 +235,9 @@ const App = () => {
             milestones: [], strategies: { snowball: [], avalanche: [] },
             intervals: { avg: 0, trend: 'stable' }, burndown: [], safetyLimit,
             debtAgeDays: 0, liberty: { percentage: 0, value: 0 },
-            opportunityCost: 0, reliabilityRanking: [], staleLoans: []
+            opportunityCost: 0, reliabilityRanking: [], staleLoans: [],
+            realValue: { nominal: 0, real: 0, gain: 0, percent: 0 },
+            currency: { usd: 0, eur: 0, rates: { usd: 41.5, eur: 44.8 }, hedgeGain: 0 }
         };
 
         const loans = data.filter(t => t.type === 'Дано в долг');
