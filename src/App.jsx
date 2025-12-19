@@ -68,7 +68,7 @@ const App = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            
+
             // Пытаемся загрузить с сервера
             const res = await fetch('/api/get-transactions');
             if (res.ok) {
@@ -76,7 +76,7 @@ const App = () => {
                 const processedData = processTransactions(result, true);
                 setData(processedData);
                 setIsOnline(true);
-                
+
                 // Сохраняем в localStorage как backup
                 saveToLocalStorage(result);
             } else {
@@ -84,7 +84,7 @@ const App = () => {
             }
         } catch (e) {
             console.warn('Не удалось загрузить с сервера, используем локальные данные:', e);
-            
+
             // Загружаем из localStorage
             const localData = loadFromLocalStorage();
             if (localData.length > 0) {
@@ -101,19 +101,19 @@ const App = () => {
 
     const processTransactions = (raw, isDbData) => {
         let currentDebt = 0;
-        
+
         return raw.map(t => {
             const income = parseFloat(t.income) || 0;
             const outcome = parseFloat(t.outcome) || 0;
-            
+
             // Правильная логика: определяем тип по счетам
             // Если деньги идут В "Долги" - это "Дано в долг"
             // Если деньги идут ИЗ "Долги" - это "Возврат"
             let amount, type;
-            
+
             const incomeAccount = (t.income_account_name || '').toLowerCase();
             const outcomeAccount = (t.outcome_account_name || '').toLowerCase();
-            
+
             if (incomeAccount.includes('долги') || incomeAccount.includes('долг')) {
                 // Деньги пришли на счет "Долги" = дали в долг
                 amount = income;
@@ -192,7 +192,7 @@ const App = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(parsed)
                 });
-                
+
                 if (res.ok) {
                     const result = await res.json();
                     alert(result.message || 'Данные синхронизированы с сервером!');
@@ -203,7 +203,7 @@ const App = () => {
                 }
             } catch (e) {
                 console.warn('Не удалось загрузить на сервер, сохраняем локально:', e);
-                
+
                 // Сохраняем локально
                 const formatted = parsed.map(t => ({
                     date: t.date,
@@ -220,7 +220,7 @@ const App = () => {
                     changed_date: null,
                     raw_line: t.rawLine
                 }));
-                
+
                 const addedCount = addToLocalStorage(formatted);
                 alert(`Сохранено локально: ${addedCount} новых транзакций`);
                 setIsOnline(false);
@@ -233,47 +233,47 @@ const App = () => {
     };
 
     const stats = useMemo(() => {
-        if (data.length === 0) return { 
+        if (data.length === 0) return {
             currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
             avgLoanAmount: 0, loansPerMonth: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false
         };
-        
+
         const loans = data.filter(t => t.type === 'Дано в долг');
         const returns = data.filter(t => t.type === 'Возврат');
         const totalGiven = loans.reduce((sum, t) => sum + t.amount, 0);
         const totalReceived = returns.reduce((sum, t) => sum + t.amount, 0);
         const currentDebt = totalGiven - totalReceived;
-        
+
         // Средний размер долга
         const avgLoanAmount = loans.length > 0 ? totalGiven / loans.length : 0;
-        
+
         // Частота займов (займов в месяц)
         const firstLoan = loans[loans.length - 1];
         const lastLoan = loans[0];
-        const monthsDiff = firstLoan && lastLoan ? 
+        const monthsDiff = firstLoan && lastLoan ?
             Math.max(1, Math.ceil((lastLoan.sortDate - firstLoan.sortDate) / (1000 * 60 * 60 * 24 * 30))) : 1;
         const loansPerMonth = loans.length / monthsDiff;
-        
+
         // Топ категорий (по комментариям)
         const categoryMap = {};
         loans.forEach(t => {
             const comment = t.comment.toLowerCase();
             let category = 'Прочее';
-            
+
             if (comment.includes('еда') || comment.includes('пиво') || comment.includes('пузат')) category = 'Еда и напитки';
             else if (comment.includes('сигарет')) category = 'Вредные привычки';
             else if (comment.includes('книг') || comment.includes('ленточ')) category = 'Канцелярия';
             else if (comment.includes('поповн') || comment.includes('пополн')) category = 'Пополнение счета';
-            
+
             categoryMap[category] = (categoryMap[category] || 0) + t.amount;
         });
-        
+
         const topCategories = Object.entries(categoryMap)
-            .sort(([,a], [,b]) => b - a)
+            .sort(([, a], [, b]) => b - a)
             .slice(0, 5)
             .map(([name, amount]) => ({ name, amount, percentage: ((amount / totalGiven) * 100).toFixed(1) }));
-        
+
         // Месячная статистика
         const monthlyMap = {};
         data.forEach(t => {
@@ -289,7 +289,7 @@ const App = () => {
                 monthlyMap[monthKey].returns++;
             }
         });
-        
+
         const monthlyStats = Object.entries(monthlyMap)
             .sort(([a], [b]) => b.localeCompare(a))
             .slice(0, 6)
@@ -298,7 +298,7 @@ const App = () => {
                 ...stats,
                 net: stats.given - stats.received
             }));
-        
+
         // Тренд долга (последние 3 месяца)
         const recentMonths = monthlyStats.slice(0, 3);
         let debtTrend = 'stable';
@@ -306,15 +306,15 @@ const App = () => {
             const trend = recentMonths[0].net - recentMonths[1].net;
             debtTrend = trend > 500 ? 'growing' : trend < -500 ? 'decreasing' : 'stable';
         }
-        
+
         // Прогноз погашения (на основе среднего возврата в месяц)
         const avgReturnPerMonth = returns.length > 0 ? totalReceived / monthsDiff : 0;
-        const projectedPayoff = avgReturnPerMonth > 0 ? 
+        const projectedPayoff = avgReturnPerMonth > 0 ?
             Math.ceil(currentDebt / avgReturnPerMonth) : null;
-        
+
         // Предупреждение о лимите (больше 100,000)
         const isOverLimit = currentDebt > 100000;
-        
+
         return {
             currentDebt,
             totalGiven,
@@ -342,7 +342,7 @@ const App = () => {
 
     const exportData = (format) => {
         const timestamp = new Date().toISOString().slice(0, 10);
-        
+
         if (format === 'csv') {
             const headers = ['Дата', 'Комментарий', 'Тип', 'Сумма', 'Остаток долга'];
             const csvContent = [
@@ -355,28 +355,28 @@ const App = () => {
                     t.currentDebt
                 ].join(','))
             ].join('\n');
-            
+
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = `долги_ганны_${timestamp}.csv`;
             link.click();
         }
-        
+
         else if (format === 'json') {
             const jsonData = {
                 exportDate: new Date().toISOString(),
                 statistics: stats,
                 transactions: data
             };
-            
+
             const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = `долги_ганны_${timestamp}.json`;
             link.click();
         }
-        
+
         else if (format === 'report') {
             const reportHtml = `
                 <!DOCTYPE html>
@@ -440,7 +440,7 @@ const App = () => {
                 </body>
                 </html>
             `;
-            
+
             const blob = new Blob([reportHtml], { type: 'text/html' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
@@ -496,23 +496,25 @@ const App = () => {
                         Текущий долг
                         {stats.isOverLimit && <span className="warning-icon">⚠️</span>}
                     </span>
-                    <span className="value">{formatAmount(stats.currentDebt)} ₴</span>
+                    <span className="value">
+                        {formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span>
+                    </span>
                 </div>
                 <div className="card stat-card warning">
                     <span className="label">Дано всего</span>
-                    <span className="value">{formatAmount(stats.totalGiven)} ₴</span>
+                    <span className="value">{formatAmount(stats.totalGiven)} <span className="value-symbol">₴</span></span>
                 </div>
                 <div className="card stat-card success">
                     <span className="label">Вернула всего</span>
-                    <span className="value">{formatAmount(stats.totalReceived)} ₴</span>
+                    <span className="value">{formatAmount(stats.totalReceived)} <span className="value-symbol">₴</span></span>
                 </div>
                 <div className="card stat-card">
                     <span className="label">Процент возврата</span>
-                    <span className="value">{stats.returnRate}%</span>
+                    <span className="value">{stats.returnRate}<span className="value-symbol">%</span></span>
                 </div>
                 <div className="card stat-card info">
                     <span className="label">Средний займ</span>
-                    <span className="value">{formatAmount(stats.avgLoanAmount)} ₴</span>
+                    <span className="value">{formatAmount(stats.avgLoanAmount)} <span className="value-symbol">₴</span></span>
                 </div>
                 <div className="card stat-card info">
                     <span className="label">Займов в месяц</span>
@@ -521,14 +523,21 @@ const App = () => {
                 <div className={`card stat-card ${stats.debtTrend === 'growing' ? 'danger' : stats.debtTrend === 'decreasing' ? 'success' : 'info'}`}>
                     <span className="label">Тренд</span>
                     <span className="value">
-                        {stats.debtTrend === 'growing' ? '📈 Растет' : 
-                         stats.debtTrend === 'decreasing' ? '📉 Снижается' : '➡️ Стабильно'}
+                        {stats.debtTrend === 'growing' ? (
+                            <><span className="value-symbol">📈</span> Растет</>
+                        ) : stats.debtTrend === 'decreasing' ? (
+                            <><span className="value-symbol">📉</span> Снижается</>
+                        ) : (
+                            <><span className="value-symbol">➡️</span> Стабильно</>
+                        )}
                     </span>
                 </div>
                 {stats.projectedPayoff && (
                     <div className="card stat-card info">
                         <span className="label">Прогноз погашения</span>
-                        <span className="value">{stats.projectedPayoff} мес.</span>
+                        <span className="value">
+                            {stats.projectedPayoff} <span className="value-unit">мес.</span>
+                        </span>
                     </div>
                 )}
             </div>
@@ -573,8 +582,8 @@ const App = () => {
                                 <span className="category-amount">{formatAmount(cat.amount)} ₴</span>
                             </div>
                             <div className="category-bar">
-                                <div 
-                                    className="category-fill" 
+                                <div
+                                    className="category-fill"
                                     style={{ width: `${cat.percentage}%` }}
                                 ></div>
                             </div>
@@ -592,9 +601,9 @@ const App = () => {
                         <div key={i} className="month-item">
                             <div className="month-header">
                                 <span className="month-name">
-                                    {new Date(month.month + '-01').toLocaleDateString('ru', { 
-                                        year: 'numeric', 
-                                        month: 'long' 
+                                    {new Date(month.month + '-01').toLocaleDateString('ru', {
+                                        year: 'numeric',
+                                        month: 'long'
                                     })}
                                 </span>
                                 <span className={`month-net ${month.net > 0 ? 'negative' : 'positive'}`}>

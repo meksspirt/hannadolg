@@ -86,12 +86,18 @@ body {
     border-radius: 12px;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
 }
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.25rem;
 }
 
 .stat-card .label {
@@ -102,8 +108,25 @@ body {
 }
 
 .stat-card .value {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 700;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    line-height: 1.2;
+}
+
+.stat-card .value-symbol {
+    font-size: 1.1rem;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+.stat-card .value-unit {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
 }
 
 .stat-card.danger .value {
@@ -127,13 +150,23 @@ body {
 }
 
 @keyframes blink {
-    0%, 50% { opacity: 1; }
-    25%, 75% { opacity: 0.7; }
+
+    0%,
+    50% {
+        opacity: 1;
+    }
+
+    25%,
+    75% {
+        opacity: 0.7;
+    }
 }
 
 .warning-icon {
-    margin-left: 5px;
-    font-size: 0.8rem;
+    margin-left: 6px;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
 }
 
 /* Аналитические карточки */
@@ -275,7 +308,7 @@ body {
 
 .export-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .upload-card {
