@@ -217,7 +217,7 @@ const App = () => {
             badHabits: { total: 0, potentialSavings: 0 }, achievements: [], plannedPayments: [],
             inflationProfit: 0, stressScore: 0, joyBudget: 0, anomalies: [],
             milestones: [], strategies: { snowball: [], avalanche: [] },
-            intervals: { avg: 0, trend: 'stable' }, burndown: [], recurringPatterns: [], safetyLimit
+            intervals: { avg: 0, trend: 'stable' }, burndown: [], safetyLimit
         };
 
         const loans = data.filter(t => t.type === 'Дано в долг');
@@ -425,6 +425,18 @@ const App = () => {
             achievements.push({ id: 'reactive', icon: '🚀', title: 'Реактивный возврат', desc: 'Вернули >30% долга за месяц' });
         if (debtTrend === 'decreasing') achievements.push({ id: 'freedom', icon: '📉', title: 'Тренд на свободу', desc: 'Долг стабильно падает' });
 
+        // 5. Мини-планировщик (анализ обещаний в комментах)
+        const plannedPayments = data.filter(t => t.comment.match(/\d{2}\.\d{2}/)).map(t => {
+            const dateMatch = t.comment.match(/\d{2}\.\d{2}/);
+            return {
+                id: (t.id || Math.random()),
+                date: dateMatch ? dateMatch[0] : '',
+                amount: t.amount,
+                comment: t.comment,
+                type: t.type
+            };
+        }).slice(0, 5);
+
         // 6. Инфляционный профит (упрощенный)
         const inflationProfit = currentDebt * (inflationRate / 100) * (monthsDiff / 12);
 
@@ -432,7 +444,7 @@ const App = () => {
         const debtToIncomeRatio = monthlyIncome > 0 ? (currentDebt / monthlyIncome) : 0;
         let stressScore = Math.min(100, Math.ceil(
             (debtToIncomeRatio * 20) +
-            (stats.debtTrend === 'growing' ? 30 : 0) +
+            (debtTrend === 'growing' ? 30 : 0) +
             (isOverLimit ? 20 : 0)
         ));
 
