@@ -851,7 +851,120 @@ td {
     padding: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.25rem;
+}
+
+.habbit-impact {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.impact-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.impact-value {
+    font-weight: 700;
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+/* Aging Display */
+.aging-display {
+    text-align: center;
+    padding: 1rem;
+}
+
+.aging-value {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+}
+
+.aging-value .days-label {
+    font-size: 1rem;
+    color: var(--text-muted);
+}
+
+.aging-desc {
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.aging-progress {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.aging-bar {
+    height: 100%;
+    transition: width 0.5s ease-out;
+}
+
+/* Liberty Display */
+.liberty-display {
+    padding: 0.5rem;
+}
+
+.liberty-main {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.liberty-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--success);
+}
+
+.liberty-label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.liberty-desc {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-bottom: 1.5rem;
+}
+
+.liberty-percent-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.p-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.p-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.p-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success), #4ade80);
+    transition: width 0.5s ease-out;
 }
 
 .habbit-main,
@@ -1255,4 +1368,100 @@ td {
     .header-tabs button {
         flex: 1;
     }
+}
+
+/* Trust Ranking */
+.trust-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.trust-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.trust-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.trust-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.trust-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.trust-badge {
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.trust-badge.high {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success);
+}
+
+.trust-badge.mid {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.trust-badge.low {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
+
+/* Stale Loans */
+.stale-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stale-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(239, 68, 68, 0.05);
+    border-left: 3px solid var(--danger);
+    border-radius: 4px;
+}
+
+.stale-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.stale-days {
+    font-size: 0.75rem;
+    color: var(--danger);
+    font-weight: 700;
+}
+
+.stale-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--success);
+    font-style: italic;
+}
+
+/* Opportunity Cost */
+.opportunity-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--danger);
+    margin: 10px 0;
 }

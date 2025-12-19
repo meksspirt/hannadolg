@@ -481,6 +481,46 @@ const App = () => {
         const snowball = Object.entries(entities).sort((a, b) => a[1] - b[1]); // Сначала мелкие
         const avalanche = Object.entries(entities).sort((a, b) => b[1] - a[1]); // Сначала крупные
 
+        // 12. Стаж долгов (Aging)
+        const oldestLoan = loans.length > 0 ? loans[loans.length - 1] : null;
+        const debtAgeDays = oldestLoan ? Math.floor((new Date() - oldestLoan.sortDate) / (1000 * 60 * 60 * 24)) : 0;
+
+        // 13. Финансовая свобода (Liberty)
+        const recentRepayments = recentMonths.reduce((sum, m) => sum + m.received, 0) / (recentMonths.length || 1);
+        const libertyPercentage = monthlyIncome > 0 ? (recentRepayments / monthlyIncome * 100).toFixed(1) : 0;
+        const libertyValue = recentRepayments;
+
+        // 14. Упущенная выгода (Opportunity Cost)
+        // Считаем сколько бы заработали эти деньги под 15% годовых
+        const opportunityCost = currentDebt * 0.15 * (monthsDiff / 12);
+
+        // 15. Рейтинг надежности (Trust Score)
+        const debtorStats = {};
+        data.forEach(t => {
+            const name = t.comment.split(' ')[0] || 'Unknown';
+            if (!debtorStats[name]) debtorStats[name] = { given: 0, received: 0, count: 0, lastActivity: t.sortDate };
+            if (t.type === 'Дано в долг') debtorStats[name].given += t.amount;
+            else debtorStats[name].received += t.amount;
+            debtorStats[name].count++;
+            if (t.sortDate > debtorStats[name].lastActivity) debtorStats[name].lastActivity = t.sortDate;
+        });
+
+        const reliabilityRanking = Object.entries(debtorStats)
+            .map(([name, s]) => {
+                const ratio = s.given > 0 ? (s.received / s.given) : 0;
+                const daysSinceLast = Math.floor((new Date() - s.lastActivity) / (1000 * 60 * 60 * 24));
+                // Простая формула: % возврата - штраф за простой
+                const score = Math.max(0, Math.round((ratio * 100) - (daysSinceLast / 10)));
+                return { name, score, ratio: (ratio * 100).toFixed(0), lastActivity: daysSinceLast };
+            })
+            .filter(d => d.name !== 'Unknown')
+            .sort((a, b) => b.score - a.score);
+
+        // 16. Список "зависших" долгов (Stale Loans)
+        const staleLoans = reliabilityRanking
+            .filter(d => d.lastActivity > 60 && d.score < 100)
+            .slice(0, 5);
+
         return {
             currentDebt,
             totalGiven,
@@ -512,7 +552,12 @@ const App = () => {
             strategies: { snowball: snowball.slice(0, 3), avalanche: avalanche.slice(0, 3) },
             intervals: { avg: avgInterval, trend: intervalTrend },
             burndown,
-            safetyLimit
+            safetyLimit,
+            debtAgeDays,
+            liberty: { percentage: libertyPercentage, value: libertyValue },
+            opportunityCost,
+            reliabilityRanking,
+            staleLoans
         };
     }, [data, safetyLimit, payoffTargetDate, extraPayment, monthlyIncome, inflationRate]);
 
@@ -919,8 +964,40 @@ const App = () => {
                             <span className="savings-label">Если сократить на 50%, вы сэкономите:</span>
                             <span className="savings-value">+{formatAmount(stats.badHabits.potentialSavings)} ₴</span>
                         </div>
+                        <div className="habbit-impact">
+                            <span className="impact-label">Это ускорит закрытие долгов на:</span>
+                            <span className="impact-value">
+                                {stats.badHabits.potentialSavings > 0 ? Math.ceil(stats.currentDebt / (stats.avgMonthlyGiven + stats.badHabits.potentialSavings)) : 0} мес.
+                            </span>
+                        </div>
                     </div>
-                    <p className="chart-hint">Подсчет на основе категории "Вредные привычки"</p>
+                </div>
+                <div className="card analytics-card aging-card">
+                    <h3>Стаж Ваших долгов 👴</h3>
+                    <div className="aging-display">
+                        <div className="aging-value">{stats.debtAgeDays} <span className="days-label">дней</span></div>
+                        <div className="aging-desc">Прошло с момента самого первого займа в списке</div>
+                        <div className="aging-progress">
+                            <div className="aging-bar" style={{ width: `${Math.min(100, (stats.debtAgeDays / 365) * 100)}%`, background: stats.debtAgeDays > 180 ? 'var(--danger)' : 'var(--primary)' }}></div>
+                        </div>
+                        <p className="chart-hint">{stats.debtAgeDays > 365 ? 'Этот долг уже отметил день рождения. Пора прощаться!' : 'Пока еще свежий, не дайте ему пустить корни.'}</p>
+                    </div>
+                </div>
+                <div className="card analytics-card liberty-card">
+                    <h3>Ваша «Цена Свободы» 🔓</h3>
+                    <div className="liberty-display">
+                        <div className="liberty-main">
+                            <span className="liberty-value">+{formatAmount(stats.liberty.value)} ₴</span>
+                            <span className="liberty-label">в месяц</span>
+                        </div>
+                        <p className="liberty-desc">
+                            Столько денег у вас <b>прибавится</b> к свободному бюджету сразу после закрытия всех долгов.
+                        </p>
+                        <div className="liberty-percent-bar">
+                            <span className="p-label">Это {stats.liberty.percentage}% вашего дохода</span>
+                            <div className="p-track"><div className="p-fill" style={{ width: `${stats.liberty.percentage}%` }}></div></div>
+                        </div>
+                    </div>
                 </div>
                 {stats.anomalies.length > 0 && (
                     <div className="card analytics-card anomalies-card">
@@ -952,23 +1029,44 @@ const App = () => {
                         </div>
                     </div>
                 </div>
-                <div className="card analytics-card planner-card">
-                    <h3>Планировщик платежей 🗓️</h3>
-                    <div className="planner-list">
-                        {stats.plannedPayments.length > 0 ? stats.plannedPayments.map(p => (
-                            <div key={p.id} className="planned-item">
-                                <div className="planned-info">
-                                    <span className="planned-comment">{p.comment}</span>
-                                    <span className="planned-amount">{formatAmount(p.amount)} ₴</span>
+                <div className="card analytics-card trust-card">
+                    <h3>Рейтинг надежности (Trust Score) 🎖️</h3>
+                    <div className="trust-list">
+                        {stats.reliabilityRanking.slice(0, 5).map((debtor, i) => (
+                            <div key={i} className="trust-item">
+                                <div className="trust-info">
+                                    <span className="trust-name">{debtor.name}</span>
+                                    <span className="trust-meta">Возврат: {debtor.ratio}%</span>
                                 </div>
-                                <span className={`planned-type ${p.type === 'Дано в долг' ? 'out' : 'in'}`}>
-                                    {p.type === 'Дано в долг' ? 'Отдать' : 'Вернут'}
-                                </span>
+                                <div className="trust-badge-wrap">
+                                    <span className={`trust-badge ${debtor.score > 80 ? 'high' : debtor.score > 40 ? 'mid' : 'low'}`}>
+                                        {debtor.score}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="chart-hint">Баллы на основе скорости и объема возвратов</p>
+                </div>
+
+                <div className="card analytics-card stale-card">
+                    <h3>«Зависшие» должники 🧊</h3>
+                    <div className="stale-list">
+                        {stats.staleLoans.length > 0 ? stats.staleLoans.map((s, i) => (
+                            <div key={i} className="stale-item">
+                                <span className="stale-name">{s.name}</span>
+                                <span className="stale-days">Молчит {s.lastActivity} дн.</span>
                             </div>
                         )) : (
-                            <p className="empty-planner">Запланированных дат не найдено в комментариях</p>
+                            <div className="stale-empty">Критически замерзших долгов нет ✨</div>
                         )}
                     </div>
+                </div>
+
+                <div className="card metric-card opportunity-card">
+                    <h3>Упущенная выгода 💸</h3>
+                    <div className="opportunity-value">-{formatAmount(stats.opportunityCost)} ₴</div>
+                    <p className="chart-hint">Столько вы могли бы заработать на депозите (15% APR)</p>
                 </div>
             </div>
 
