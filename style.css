@@ -362,6 +362,59 @@ body {
     font-weight: 600;
 }
 
+.card-header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.header-tabs {
+    display: flex;
+    background: var(--border);
+    padding: 3px;
+    border-radius: 8px;
+}
+
+.header-tabs button {
+    border: none;
+    background: transparent;
+    padding: 6px 16px;
+    border-radius: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.header-tabs button.active {
+    background: var(--card);
+    color: var(--primary);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chart-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 1rem;
+    font-style: italic;
+}
+
+.advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.chart-box-mini {
+    height: 180px;
+    margin-top: 0.5rem;
+}
+
 .chart-box {
     height: 350px;
     margin-top: 1rem;

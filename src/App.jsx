@@ -12,6 +12,7 @@ import {
 import { loadFromLocalStorage, saveToLocalStorage, addToLocalStorage } from './localStorage-storage.js';
 import ParentSize from '@visx/responsive/lib/components/ParentSize';
 import DebtChart from './DebtChart';
+import { WeekdayChart, LoanSizeChart, MonthlyHeatmap } from './AdvancedAnalytics';
 import { format } from 'date-fns';
 
 const App = () => {
@@ -22,6 +23,7 @@ const App = () => {
         }).format(num).replace(',', '.');
     };
 
+    const [chartMode, setChartMode] = useState('debt'); // 'debt' or 'flow'
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -234,22 +236,75 @@ const App = () => {
 
         // Топ категорий (по комментариям)
         const categoryMap = {};
+        const weekdayMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+        const loanSizeBuckets = { small: 0, medium: 0, large: 0 };
+        const daysOfMonthMap = Array(31).fill(0).reduce((acc, _, i) => ({ ...acc, [i + 1]: 0 }), {});
+
         loans.forEach(t => {
             const comment = t.comment.toLowerCase();
             let category = 'Прочее';
-
             if (comment.includes('еда') || comment.includes('пиво') || comment.includes('пузат')) category = 'Еда и напитки';
             else if (comment.includes('сигарет')) category = 'Вредные привычки';
             else if (comment.includes('книг') || comment.includes('ленточ')) category = 'Канцелярия';
             else if (comment.includes('поповн') || comment.includes('пополн')) category = 'Пополнение счета';
-
             categoryMap[category] = (categoryMap[category] || 0) + t.amount;
+
+            // Дни недели
+            const day = t.sortDate.getDay();
+            weekdayMap[day] += t.amount;
+
+            // Размеры займов
+            if (t.amount < 500) loanSizeBuckets.small += t.amount;
+            else if (t.amount <= 2000) loanSizeBuckets.medium += t.amount;
+            else loanSizeBuckets.large += t.amount;
+
+            // Дни месяца (для тепловой карты)
+            const date = t.sortDate.getDate();
+            daysOfMonthMap[date]++;
         });
 
         const topCategories = Object.entries(categoryMap)
             .sort(([, a], [, b]) => b - a)
             .slice(0, 5)
             .map(([name, amount]) => ({ name, amount, percentage: ((amount / totalGiven) * 100).toFixed(1) }));
+
+        // Кумулятивные данные
+        const sortedAll = [...data].sort((a, b) => a.sortDate - b.date);
+        let cumGiven = 0;
+        let cumReceived = 0;
+        const cumulativeData = sortedAll.map(t => {
+            if (t.type === 'Дано в долг') cumGiven += t.amount;
+            else cumReceived += t.amount;
+            return {
+                date: t.sortDate,
+                given: cumGiven,
+                received: cumReceived,
+                debt: cumGiven - cumReceived
+            };
+        });
+
+        // Прогноз (упрощенный линейный на основе последних 60 дней)
+        const sixtyDaysAgo = new Date();
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+        const recentTrans = cumulativeData.filter(d => d.date >= sixtyDaysAgo);
+        let forecastData = [];
+        if (recentTrans.length >= 2) {
+            const start = recentTrans[0];
+            const end = recentTrans[recentTrans.length - 1];
+            const daysDiff = (end.date - start.date) / (1000 * 60 * 60 * 24);
+            const debtDiff = end.debt - start.debt;
+            const debtPerDay = debtDiff / (daysDiff || 1);
+
+            for (let i = 1; i <= 6; i++) {
+                const fDate = new Date(end.date);
+                fDate.setMonth(fDate.getMonth() + i);
+                forecastData.push({
+                    date: fDate,
+                    debt: Math.max(0, end.debt + (debtPerDay * 30 * i)),
+                    isForecast: true
+                });
+            }
+        }
 
         // Месячная статистика
         const monthlyMap = {};
@@ -304,7 +359,12 @@ const App = () => {
             monthlyStats,
             debtTrend,
             projectedPayoff,
-            isOverLimit
+            isOverLimit,
+            weekdayStats: Object.entries(weekdayMap).map(([day, amount]) => ({ day: parseInt(day), amount })),
+            loanSizeStats: Object.entries(loanSizeBuckets).map(([size, amount]) => ({ size, amount })),
+            daysOfMonthData: Object.entries(daysOfMonthMap).map(([day, count]) => ({ day: parseInt(day), count })),
+            cumulativeData,
+            forecastData
         };
     }, [data]);
 
@@ -541,13 +601,21 @@ const App = () => {
             </div>
 
             <div className="card chart-card">
-                <h3>Динамика долга</h3>
+                <div className="card-header-actions">
+                    <h3>{chartMode === 'debt' ? 'Динамика долга и прогноз' : 'Накопительные потоки (Flow)'}</h3>
+                    <div className="header-tabs">
+                        <button className={chartMode === 'debt' ? 'active' : ''} onClick={() => setChartMode('debt')}>Тренд</button>
+                        <button className={chartMode === 'flow' ? 'active' : ''} onClick={() => setChartMode('flow')}>Поток</button>
+                    </div>
+                </div>
                 <div className="chart-box">
                     {formattedChartData.length > 0 && (
                         <ParentSize>
                             {({ width, height }) => (
                                 <DebtChart
-                                    data={formattedChartData}
+                                    data={chartMode === 'debt' ? formattedChartData : stats.cumulativeData}
+                                    forecastData={chartMode === 'debt' ? stats.forecastData : []}
+                                    mode={chartMode}
                                     width={width}
                                     height={height}
                                     theme={theme}
@@ -555,6 +623,29 @@ const App = () => {
                             )}
                         </ParentSize>
                     )}
+                </div>
+                {chartMode === 'debt' && <p className="chart-hint">Пунктирная линия — прогноз на основе последних 60 дней</p>}
+            </div>
+
+            <div className="advanced-grid">
+                <div className="card analytics-card">
+                    <h3>Активность по дням недели</h3>
+                    <div className="chart-box-mini">
+                        <WeekdayChart data={stats.weekdayStats} theme={theme} />
+                    </div>
+                </div>
+                <div className="card analytics-card">
+                    <h3>Распределение по размерам</h3>
+                    <div className="chart-box-mini">
+                        <LoanSizeChart data={stats.loanSizeStats} theme={theme} />
+                    </div>
+                </div>
+                <div className="card analytics-card">
+                    <h3>Частота по дням месяца</h3>
+                    <div className="chart-box-mini">
+                        <MonthlyHeatmap data={stats.daysOfMonthData} theme={theme} />
+                    </div>
+                    <p className="chart-hint">Яркость — количество транзакций в этот день месяца</p>
                 </div>
             </div>
 
