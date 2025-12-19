@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализатор долгов Ганны</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="light-theme">
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <h1>Анализатор долгов</h1>
+                <button id="themeToggle" class="btn-icon">🌙</button>
+            </div>
+            <p class="intro">Интеллектуальный помощник для отслеживания долговых операций с "Ганна Є."</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="upload-section card">
+                <div class="file-input-wrapper">
+                    <input type="file" id="csvFileInput" accept=".csv">
+                    <label for="csvFileInput" class="btn-secondary">Выбрать файл CSV</label>
+                </div>
+                <button id="processButton" class="btn-primary">Анализировать данные</button>
+            </div>
+
+            <div id="quick-stats" class="card stats-summary" style="display:none;">
+                <!-- Динамически заполняется -->
+            </div>
+        </div>
+
+        <div id="analytics-section" style="display:none;">
+            <div class="grid-2-cols">
+                <div class="card analytics-card">
+                    <h3>Прогноз погашения</h3>
+                    <div id="forecast-content"></div>
+                </div>
+                <div class="card analytics-card">
+                    <h3>Эффективность</h3>
+                    <div id="efficiency-content"></div>
+                </div>
+            </div>
+
+            <div class="card chart-card">
+                <div class="chart-header">
+                    <h3>Динамика долга и тренд</h3>
+                </div>
+                <div id="chart-container">
+                    <canvas id="debtChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid-2-cols">
+                <div id="monthly-summary" class="card"></div>
+                <div id="advice" class="card"></div>
+            </div>
+
+            <div class="card transactions-card">
+                <div class="transactions-header">
+                    <h3>История операций</h3>
+                    <div class="controls">
+                        <input type="text" id="searchInput" placeholder="Поиск по комментарию...">
+                        <div class="filter-buttons">
+                            <button id="filterAll" class="active">Все</button>
+                            <button id="filterGiven">Выдано</button>
+                            <button id="filterReceived">Возвраты</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="transactions-wrapper">
+                    <div id="transactions"></div>
+                </div>
+                <button id="toggleTransactionsButton" class="btn-text">Свернуть список</button>
+            </div>
+        </div>
+
+        <div id="empty-state" class="card text-center">
+            <div class="empty-icon">📂</div>
+            <h3>Нет данных для анализа</h3>
+            <p>Пожалуйста, загрузите CSV-файл из ZenMoney, чтобы увидеть статистику.</p>
+        </div>
+
+        <footer>
+            <p>&copy; 2024 Анализатор долгов. Полностью локальная обработка данных.</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>

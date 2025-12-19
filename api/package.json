@@ -1,0 +1,8 @@
+{
+    "name": "hannadolg-api",
+    "version": "1.0.0",
+    "description": "Vercel serverless functions for transaction management",
+    "dependencies": {
+        "pg": "^8.11.3"
+    }
+}
