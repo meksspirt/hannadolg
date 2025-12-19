@@ -13,6 +13,7 @@ import { loadFromLocalStorage, saveToLocalStorage, addToLocalStorage } from './l
 import ParentSize from '@visx/responsive/lib/components/ParentSize';
 import DebtChart from './DebtChart';
 import { WeekdayChart, LoanSizeChart, MonthlyHeatmap } from './AdvancedAnalytics';
+import FinancialAdvice from './FinancialAdvice';
 import { format } from 'date-fns';
 
 const App = () => {
@@ -522,6 +523,8 @@ const App = () => {
                     {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
             </header>
+
+            <FinancialAdvice stats={stats} />
 
             <div className="stats-grid">
                 <div className={`card stat-card ${stats.isOverLimit ? 'danger blink' : 'danger'}`}>
