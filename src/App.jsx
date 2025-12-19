@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Sun, Moon, Upload, History, TrendingUp,
-    BarChart3, LifeBuoy, FileSpreadsheet, Search,
-    ChevronLeft, ChevronRight, ArrowUpDown
+    Upload,
+    Search,
+    TrendingUp,
+    CheckCircle2,
+    Calendar,
+    Sun,
+    Moon
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -10,7 +14,7 @@ import {
     LinearScale,
     PointElement,
     LineElement,
-    Title as ChartTitle,
+    Title,
     Tooltip,
     Legend,
     TimeScale,
@@ -18,14 +22,15 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import { format, parseISO } from 'date-fns';
+import { ru } from 'date-fns/locale';
 
-// Регистрация ChartJS
 ChartJS.register(
     CategoryScale,
     LinearScale,
     PointElement,
     LineElement,
-    ChartTitle,
+    Title,
     Tooltip,
     Legend,
     TimeScale,
@@ -33,33 +38,28 @@ ChartJS.register(
 );
 
 const App = () => {
-    // Функция для красивого форматирования чисел (разделитель пробел)
+    // Форматирование чисел
     const formatAmount = (num) => {
         return new Intl.NumberFormat('ru-RU', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
-        }).format(num).replace(',', '.'); // Используем точку для копеек, но пробел для тысяч
+        }).format(num).replace(',', '.');
     };
 
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
-
-    // Состояние таблицы
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('all');
-    const [sortOrder, setSortOrder] = useState('desc');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    // Инициализация темы
     useEffect(() => {
-        document.body.className = `${theme}-theme`;
+        document.body.className = theme === 'dark' ? 'dark-theme' : '';
         localStorage.setItem('theme', theme);
     }, [theme]);
 
-    // Загрузка из БД при старте
     useEffect(() => {
         fetchData();
     }, []);
@@ -68,13 +68,11 @@ const App = () => {
         try {
             setLoading(true);
             const res = await fetch('/api/get-transactions');
+            const result = await res.json();
             if (res.ok) {
-                const dbData = await res.json();
-                const processed = processTransactions(dbData, true);
-                setData(processed);
+                setData(processTransactions(result, true));
             } else {
-                const errorData = await res.json();
-                console.error('Ошибка загрузки данных:', errorData);
+                alert('Ошибка: ' + (result.error || 'Не удалось загрузить данные'));
             }
         } catch (e) {
             console.error('Fetch error:', e);
@@ -83,65 +81,42 @@ const App = () => {
         }
     };
 
-    const processTransactions = (transactions, isFromDb) => {
-        // Сортировка по дате создания для расчета бегущего итога
-        const sorted = [...transactions].sort((a, b) => {
-            const dateA = new Date(isFromDb ? a.created_date : a.createdDate);
-            const dateB = new Date(isFromDb ? b.created_date : b.createdDate);
-            return dateA - dateB;
-        });
+    const processTransactions = (raw, isDbData) => {
+        let currentDebt = 0;
+        return raw.map(t => {
+            const income = parseFloat(isDbData ? t.income : t.income) || 0;
+            const outcome = parseFloat(isDbData ? t.outcome : t.outcome) || 0;
+            const amount = income > 0 ? income : outcome;
+            const type = income > 0 ? 'Возврат' : 'Дано в долг';
 
-        let runningDebt = 0;
-        const targetName = "Ганна Є.";
-        const debtCategory = "Долги";
+            if (type === 'Дано в долг') currentDebt += amount;
+            else currentDebt -= amount;
 
-        return sorted.map(row => {
-            const incomeAcc = isFromDb ? row.income_account_name : row.incomeAccountName;
-            const outcomeAcc = isFromDb ? row.outcome_account_name : row.outcomeAccountName;
-            const incomeVal = parseFloat(isFromDb ? row.income : row.income) || 0;
-            const outcomeVal = parseFloat(isFromDb ? row.outcome : row.outcome) || 0;
-
-            let type = '';
-            let amount = 0;
-
-            if (incomeAcc.includes(debtCategory) && outcomeVal > 0) {
-                runningDebt += outcomeVal;
-                type = 'Дано в долг';
-                amount = outcomeVal;
-            } else if (outcomeAcc.includes(debtCategory) && incomeVal > 0) {
-                runningDebt -= incomeVal;
-                type = 'Возврат долга';
-                amount = incomeVal;
-            }
-
-            if (!type) return null;
+            const dateStr = isDbData ? t.date : t.date;
+            const sortDate = new Date(dateStr.split('.').reverse().join('-'));
 
             return {
-                ...row,
-                type,
+                ...t,
                 amount,
-                currentDebt: runningDebt,
-                formattedDate: new Date(isFromDb ? row.date : row.date).toLocaleDateString('ru-RU'),
-                sortDate: new Date(isFromDb ? row.created_date : row.createdDate)
+                type,
+                currentDebt,
+                sortDate,
+                formattedDate: format(sortDate, 'dd.MM.yyyy'),
+                date: sortDate // для графика
             };
-        }).filter(Boolean);
+        }).sort((a, b) => b.sortDate - a.sortDate);
     };
 
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        console.log('Начинаю обработку файла:', file.name);
-
         const reader = new FileReader();
         reader.onload = async (event) => {
             const text = event.target.result;
             const parsed = parseCsvLocal(text);
-
-            console.log('Результат парсинга (обнаружено строк):', parsed.length);
-
             if (parsed.length === 0) {
-                alert('Транзакций для "Ганна Є." не обнаружено. Проверьте, что в файле есть это имя в колонке "Плательщик/Получатель" и есть категория "Долги".');
+                alert('Транзакций не обнаружено. Проверьте формат файла.');
                 return;
             }
 
@@ -152,18 +127,16 @@ const App = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(parsed)
                 });
-
+                const result = await res.json();
                 if (res.ok) {
-                    alert('Данные успешно синхронизированы!');
+                    alert('Данные успешно сохранены!');
                     fetchData();
                 } else {
-                    const errorInfo = await res.json();
-                    throw new Error(errorInfo.error || errorInfo.message || 'Неизвестная ошибка сервера');
+                    alert('Ошибка: ' + result.error);
                 }
             } catch (e) {
-                console.error('Ошибка сохранения:', e);
-                alert('Ошибка: ' + e.message);
-                setData(processTransactions(parsed, false));
+                console.error(e);
+                alert('Ошибка сети или сервера');
             } finally {
                 setUploading(false);
             }
@@ -178,12 +151,8 @@ const App = () => {
 
         return lines.map(line => {
             if (!line.trim()) return null;
-
-            // Авто-определение разделителя (запятая или точка с запятой)
             const delimiter = line.includes(';') ? ';' : ',';
-            const columns = line.split(delimiter);
-
-            const clean = columns.map(col => col.replace(/"/g, '').trim());
+            const clean = line.split(delimiter).map(col => col.replace(/"/g, '').trim());
             if (clean.length < 12) return null;
 
             const payee = clean[2];
@@ -211,277 +180,143 @@ const App = () => {
         }).filter(Boolean);
     };
 
-    // Расчет статистики
     const stats = useMemo(() => {
-        const totalGiven = data.reduce((acc, t) => t.type === 'Дано в долг' ? acc + t.amount : acc, 0);
-        const totalReceived = data.reduce((acc, t) => t.type === 'Возврат долга' ? acc + t.amount : acc, 0);
-        const currentDebt = data.length > 0 ? data[data.length - 1].currentDebt : 0;
-        const returnRate = totalGiven > 0 ? ((totalReceived / totalGiven) * 100).toFixed(1) : 0;
-
-        return { totalGiven, totalReceived, currentDebt, returnRate };
+        if (data.length === 0) return { currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0 };
+        const latest = data[0];
+        const totalGiven = data.filter(t => t.type === 'Дано в долг').reduce((sum, t) => sum + t.amount, 0);
+        const totalReceived = data.filter(t => t.type === 'Возврат').reduce((sum, t) => sum + t.amount, 0);
+        return {
+            currentDebt: latest.currentDebt,
+            totalGiven,
+            totalReceived,
+            returnRate: totalGiven > 0 ? ((totalReceived / totalGiven) * 100).toFixed(1) : 0
+        };
     }, [data]);
 
-    // Фильтрация и сортировка для таблицы
     const filteredData = useMemo(() => {
-        let result = data.filter(t => {
-            const matchesSearch = t.comment?.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesFilter = filter === 'all' ||
-                (filter === 'given' && t.type === 'Дано в долг') ||
-                (filter === 'received' && t.type === 'Возврат долга');
+        return data.filter(t => {
+            const matchesSearch = t.comment.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesFilter = filter === 'all' || (filter === 'given' && t.type === 'Дано в долг') || (filter === 'received' && t.type === 'Возврат');
             return matchesSearch && matchesFilter;
         });
+    }, [data, searchQuery, filter]);
 
-        result.sort((a, b) => {
-            return sortOrder === 'desc' ? b.sortDate - a.sortDate : a.sortDate - b.sortDate;
-        });
+    const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-        return result;
-    }, [data, searchQuery, filter, sortOrder]);
-
-    // Данные для графика
     const chartData = {
-        labels: data.map(d => d.date),
+        labels: [...data].reverse().map(d => d.date),
         datasets: [{
-            label: 'Текущий долг',
-            data: data.map(d => d.currentDebt),
+            label: 'Долг',
+            data: [...data].reverse().map(d => d.currentDebt),
             borderColor: '#6366f1',
-            backgroundColor: (context) => {
-                const ctx = context.chart.ctx;
-                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-                gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
-                gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
-                return gradient;
-            },
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
             fill: true,
-            tension: 0.4,
-            pointRadius: 4,
-            pointBackgroundColor: '#6366f1',
-            pointBorderColor: '#fff',
-            pointHoverRadius: 6,
+            tension: 0.1, // Менее кривой график
+            pointRadius: 2
         }]
     };
 
     const chartOptions = {
         responsive: true,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: '#1e293b',
-                titleColor: '#94a3b8',
-                bodyColor: '#f8fafc',
-                padding: 12,
-                borderRadius: 8,
-                displayColors: false,
-                callbacks: {
-                    label: (context) => `Долг: ${formatAmount(context.raw)} ₴`
-                }
-            }
-        },
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
         scales: {
-            x: {
-                type: 'time',
-                time: { unit: 'month', displayFormats: { month: 'MMM yyyy' } },
-                grid: { display: false },
-                ticks: { color: '#94a3b8', font: { size: 11 } }
-            },
-            y: {
-                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                ticks: {
-                    color: '#94a3b8',
-                    font: { size: 11 },
-                    callback: (value) => formatAmount(value)
-                }
-            }
+            x: { type: 'time', time: { unit: 'month' }, grid: { display: false } },
+            y: { grid: { color: 'rgba(0,0,0,0.05)' } }
         }
     };
-
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
-    const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
         <div className="container">
             <header>
-                <div className="header-top">
-                    <h1>Анализатор долгов <span style={{ fontSize: '1rem', color: 'var(--accent-color)' }}>React Edition</span></h1>
-                    <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className="btn-icon">
-                        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-                    </button>
-                </div>
-                <p className="intro">Умная система учета долговых обязательств с использованием Supabase и React.</p>
+                <h1>Анализатор долгов</h1>
+                <button className="theme-toggle" onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}>
+                    {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+                </button>
             </header>
 
             <div className="stats-grid">
-                <div className="upload-section card">
-                    <div className="file-input-wrapper">
-                        <input type="file" id="csvFileInput" accept=".csv" onChange={handleFileUpload} />
-                        <label htmlFor="csvFileInput" className="btn-secondary">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                <Upload size={18} /> {uploading ? 'Загрузка...' : 'Выбрать файл CSV'}
-                            </div>
-                        </label>
-                    </div>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                        Файл будет автоматически синхронизирован с облаком
-                    </p>
+                <div className="card stat-item">
+                    <span className="stat-label">Текущий долг</span>
+                    <span className="stat-value danger">{formatAmount(stats.currentDebt)} ₴</span>
                 </div>
-
-                {data.length > 0 && (
-                    <div className="card stats-summary">
-                        <div className="stat-item">
-                            <span className="stat-label">Текущий долг</span>
-                            <span className="stat-value danger">{formatAmount(stats.currentDebt)} ₴</span>
-                        </div>
-                        <div className="stat-item">
-                            <span className="stat-label">Вернула всего</span>
-                            <span className="stat-value success">{formatAmount(stats.totalReceived)} ₴</span>
-                        </div>
-                        <div className="stat-item">
-                            <span className="stat-label">Выдано всего</span>
-                            <span className="stat-value">{formatAmount(stats.totalGiven)} ₴</span>
-                        </div>
-                        <div className="stat-item">
-                            <span className="stat-label">Процент возврата</span>
-                            <span className="stat-value">{stats.returnRate}%</span>
-                        </div>
-                    </div>
-                )}
+                <div className="card stat-item">
+                    <span className="stat-label">Вернула всего</span>
+                    <span className="stat-value success">{formatAmount(stats.totalReceived)} ₴</span>
+                </div>
+                <div className="card stat-item">
+                    <span className="stat-label">Процент возврата</span>
+                    <span className="stat-value">{stats.returnRate}%</span>
+                </div>
             </div>
 
-            {data.length === 0 && !loading && (
-                <div className="card text-center" style={{ padding: '3rem' }}>
-                    <FileSpreadsheet size={64} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                    <h3>Нет данных для анализа</h3>
-                    <p>Загрузите CSV файл из ZenMoney для начала работы.</p>
+            <div className="card">
+                <div className="upload-area">
+                    <input type="file" id="csv-upload" onChange={handleFileUpload} style={{ display: 'none' }} accept=".csv" />
+                    <label htmlFor="csv-upload" className="file-input-label">
+                        <Upload size={20} />
+                        {uploading ? 'Загрузка...' : 'Выбрать файл CSV'}
+                    </label>
+                    <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Файл будет автоматически синхронизирован</p>
                 </div>
-            )}
+            </div>
 
-            {data.length > 0 && (
-                <div id="analytics-section">
-                    <div className="grid-2-cols">
-                        <div className="card analytics-card">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                                <TrendingUp size={20} className="accent-color" />
-                                <h3 style={{ margin: 0 }}>Прогноз погашения</h3>
-                            </div>
-                            {stats.currentDebt > 0 ? (
-                                <div>
-                                    <p>При текущей динамике возвратов осталось примерно:</p>
-                                    <div className="forecast-badge">
-                                        {Math.ceil(stats.currentDebt / (stats.totalReceived / (data.filter(t => t.type === 'Возврат долга').length || 1)))} платежа(ей)
-                                    </div>
-                                </div>
-                            ) : (
-                                <p className="success-text">Долг полностью погашен! 🎉</p>
-                            )}
-                        </div>
-                        <div className="card analytics-card">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                                <LifeBuoy size={20} className="accent-color" />
-                                <h3 style={{ margin: 0 }}>Эффективность</h3>
-                            </div>
-                            <p>Дисциплина возвратов:</p>
-                            <span className={`stat-value ${stats.returnRate > 70 ? 'success' : stats.returnRate > 40 ? 'accent' : 'danger'}`}>
-                                {stats.returnRate > 70 ? 'Высокая' : stats.returnRate > 40 ? 'Средняя' : 'Низкая'}
-                            </span>
-                        </div>
+            <div className="card">
+                <h3 style={{ marginBottom: '1rem' }}>Динамика долга</h3>
+                <div className="chart-container">
+                    {data.length > 0 ? <Line data={chartData} options={chartOptions} /> : <p>Нет данных для графика</p>}
+                </div>
+            </div>
+
+            <div className="card">
+                <div className="controls">
+                    <div className="search-container">
+                        <Search className="search-icon" size={18} />
+                        <input
+                            className="search-box"
+                            placeholder="Поиск по комментариям..."
+                            value={searchQuery}
+                            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                        />
                     </div>
-
-                    <div className="card chart-card">
-                        <div className="chart-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <BarChart3 size={20} className="accent-color" />
-                                <h3 style={{ margin: 0 }}>Динамика долга</h3>
-                            </div>
-                        </div>
-                        <div style={{ height: '300px' }}>
-                            <Line data={chartData} options={chartOptions} />
-                        </div>
-                    </div>
-
-                    <div className="card transactions-card">
-                        <div className="transactions-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <History size={20} className="accent-color" />
-                                <h3 style={{ margin: 0 }}>История операций</h3>
-                            </div>
-                            <div className="controls">
-                                <div className="search-container">
-                                    <Search className="search-icon" size={18} />
-                                    <input
-                                        type="text"
-                                        placeholder="Поиск по комментариям..."
-                                        value={searchQuery}
-                                        onChange={(e) => {
-                                            setSearchQuery(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="search-box"
-                                    />
-                                </div>
-                                <div className="filter-group">
-                                    <button
-                                        className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-                                        onClick={() => { setFilter('all'); setCurrentPage(1); }}
-                                    >Все</button>
-                                    <button
-                                        className={`filter-btn ${filter === 'given' ? 'active' : ''}`}
-                                        onClick={() => { setFilter('given'); setCurrentPage(1); }}
-                                    >Выдано</button>
-                                    <button
-                                        className={`filter-btn ${filter === 'received' ? 'active' : ''}`}
-                                        onClick={() => { setFilter('received'); setCurrentPage(1); }}
-                                    >Возвраты</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="transactions-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} style={{ cursor: 'pointer' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                Дата <ArrowUpDown size={14} />
-                                            </div>
-                                        </th>
-                                        <th>Комментарий</th>
-                                        <th>Тип</th>
-                                        <th>Сумма</th>
-                                        <th>Долг</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {paginatedData.map((t, i) => (
-                                        <tr key={i}>
-                                            <td>{t.formattedDate}</td>
-                                            <td>{t.comment}</td>
-                                            <td>
-                                                <span className={`badge ${t.type === 'Дано в долг' ? 'danger' : 'success'}`}>
-                                                    {t.type}
-                                                </span>
-                                            </td>
-                                            <td>{formatAmount(t.amount)}</td>
-                                            <td><strong>{formatAmount(t.currentDebt)}</strong></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-
-                            {filteredData.length > itemsPerPage && (
-                                <div className="pagination">
-                                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}><ChevronLeft /></button>
-                                    <span className="page-info">Страница {currentPage} из {totalPages}</span>
-                                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}><ChevronRight /></button>
-                                </div>
-                            )}
-                        </div>
+                    <div className="filter-group">
+                        <button className={`filter-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>Все</button>
+                        <button className={`filter-btn ${filter === 'given' ? 'active' : ''}`} onClick={() => setFilter('given')}>Выдано</button>
+                        <button className={`filter-btn ${filter === 'received' ? 'active' : ''}`} onClick={() => setFilter('received')}>Возвраты</button>
                     </div>
                 </div>
-            )}
 
-            <footer>
-                <p>&copy; 2024 Анализатор долгов Ганны. Построено на React + Supabase.</p>
-            </footer>
+                <div className="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Комментарий</th>
+                                <th>Тип</th>
+                                <th>Сумма</th>
+                                <th>Остаток</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginatedData.map((t, i) => (
+                                <tr key={i}>
+                                    <td>{t.formattedDate}</td>
+                                    <td>{t.comment}</td>
+                                    <td><span className={`badge ${t.type === 'Возврат' ? 'success' : 'danger'}`}>{t.type}</span></td>
+                                    <td>{formatAmount(t.amount)}</td>
+                                    <td><strong>{formatAmount(t.currentDebt)}</strong></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                    <button className="filter-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Назад</button>
+                    <span style={{ alignSelf: 'center' }}>Стр. {currentPage}</span>
+                    <button className="filter-btn" disabled={currentPage * itemsPerPage >= filteredData.length} onClick={() => setCurrentPage(p => p + 1)}>Вперед</button>
+                </div>
+            </div>
         </div>
     );
 };

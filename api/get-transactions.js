@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
 
     const pool = new Pool({
         connectionString: connectionString,
-        ssl: { rejectUnauthorized: false }
+        ssl: connectionString.includes('supabase') ? { rejectUnauthorized: false } : false
     });
 
     try {
