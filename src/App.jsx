@@ -217,7 +217,9 @@ const App = () => {
             badHabits: { total: 0, potentialSavings: 0 }, achievements: [], plannedPayments: [],
             inflationProfit: 0, stressScore: 0, joyBudget: 0, anomalies: [],
             milestones: [], strategies: { snowball: [], avalanche: [] },
-            intervals: { avg: 0, trend: 'stable' }, burndown: [], safetyLimit
+            intervals: { avg: 0, trend: 'stable' }, burndown: [], safetyLimit,
+            debtAgeDays: 0, liberty: { percentage: 0, value: 0 },
+            opportunityCost: 0, reliabilityRanking: [], staleLoans: []
         };
 
         const loans = data.filter(t => t.type === 'Дано в долг');
