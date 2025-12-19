@@ -5,8 +5,11 @@ import {
     Sun,
     Moon,
     ArrowUpRight,
-    ArrowDownLeft
+    ArrowDownLeft,
+    Wifi,
+    WifiOff
 } from 'lucide-react';
+import { loadFromLocalStorage, saveToLocalStorage, addToLocalStorage } from './localStorage-storage.js';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -50,6 +53,7 @@ const App = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
+    const [isOnline, setIsOnline] = useState(true);
     const itemsPerPage = 10;
 
     useEffect(() => {
@@ -64,18 +68,32 @@ const App = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
+            
+            // Пытаемся загрузить с сервера
             const res = await fetch('/api/get-transactions');
             if (res.ok) {
                 const result = await res.json();
-                setData(processTransactions(result, true));
+                const processedData = processTransactions(result, true);
+                setData(processedData);
+                setIsOnline(true);
+                
+                // Сохраняем в localStorage как backup
+                saveToLocalStorage(result);
             } else {
-                const err = await res.json();
-                console.error('API Error:', err);
-                alert(`Ошибка загрузки данных: ${err.error}`);
+                throw new Error('Server error');
             }
         } catch (e) {
-            console.error('Fetch error:', e);
-            alert('Ошибка сети при загрузке данных');
+            console.warn('Не удалось загрузить с сервера, используем локальные данные:', e);
+            
+            // Загружаем из localStorage
+            const localData = loadFromLocalStorage();
+            if (localData.length > 0) {
+                setData(processTransactions(localData, true));
+                setIsOnline(false);
+            } else {
+                setData([]);
+                setIsOnline(false);
+            }
         } finally {
             setLoading(false);
         }
@@ -141,22 +159,45 @@ const App = () => {
 
             setUploading(true);
             try {
+                // Пытаемся загрузить на сервер
                 const res = await fetch('/api/add-transactions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(parsed)
                 });
+                
                 if (res.ok) {
-                    alert('Данные синхронизированы!');
+                    const result = await res.json();
+                    alert(result.message || 'Данные синхронизированы с сервером!');
+                    setIsOnline(true);
                     fetchData();
                 } else {
-                    const err = await res.json();
-                    console.error('Server error:', err);
-                    alert(`Ошибка сервера: ${err.error}${err.details ? '\n' + err.details : ''}`);
+                    throw new Error('Server error');
                 }
             } catch (e) {
-                console.error('Network error:', e);
-                alert('Ошибка сети при загрузке файла');
+                console.warn('Не удалось загрузить на сервер, сохраняем локально:', e);
+                
+                // Сохраняем локально
+                const formatted = parsed.map(t => ({
+                    date: t.date,
+                    category_name: t.categoryName,
+                    payee: t.payee,
+                    comment: t.comment,
+                    outcome_account_name: t.outcomeAccountName,
+                    outcome: t.outcome,
+                    outcome_currency: 'UAH',
+                    income_account_name: t.incomeAccountName,
+                    income: t.income,
+                    income_currency: 'UAH',
+                    created_date: t.createdDate,
+                    changed_date: null,
+                    raw_line: t.rawLine
+                }));
+                
+                const addedCount = addToLocalStorage(formatted);
+                alert(`Сохранено локально: ${addedCount} новых транзакций`);
+                setIsOnline(false);
+                fetchData();
             } finally {
                 setUploading(false);
             }
@@ -214,7 +255,13 @@ const App = () => {
             <header className="main-header">
                 <div>
                     <h1>Анализатор долгов</h1>
-                    <p className="subtitle">Учет транзакций Ганны Є.</p>
+                    <p className="subtitle">
+                        Учет транзакций Ганны Є.
+                        <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
+                            {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
+                            {isOnline ? 'Онлайн' : 'Локально'}
+                        </span>
+                    </p>
                 </div>
                 <button className="theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
                     {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -244,10 +291,18 @@ const App = () => {
                     style={{ display: 'none' }}
                     accept=".csv"
                 />
-                <label htmlFor="file" className="upload-btn">
-                    <Upload size={20} />
-                    {uploading ? 'Загрузка...' : 'Выбрать CSV таблицу'}
-                </label>
+                <div className="upload-actions">
+                    <label htmlFor="file" className="upload-btn">
+                        <Upload size={20} />
+                        {uploading ? 'Загрузка...' : 'Выбрать CSV таблицу'}
+                    </label>
+                    {!isOnline && (
+                        <button className="retry-btn" onClick={fetchData} disabled={loading}>
+                            <Wifi size={16} />
+                            {loading ? 'Подключение...' : 'Попробовать снова'}
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="card chart-card">
