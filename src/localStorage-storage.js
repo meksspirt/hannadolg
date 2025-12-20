@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'hanna-transactions';
+const STORAGE_KEY = 'debt-sense-transactions';
 
 export const loadFromLocalStorage = () => {
     try {
@@ -23,13 +23,13 @@ export const saveToLocalStorage = (transactions) => {
 export const addToLocalStorage = (newTransactions) => {
     const existing = loadFromLocalStorage();
     const existingDates = new Set(existing.map(t => t.created_date));
-    
+
     const toAdd = newTransactions.filter(t => !existingDates.has(t.created_date));
-    
+
     if (toAdd.length > 0) {
         const updated = [...existing, ...toAdd];
         return saveToLocalStorage(updated) ? toAdd.length : 0;
     }
-    
+
     return 0;
 };

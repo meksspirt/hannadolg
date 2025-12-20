@@ -48,7 +48,7 @@ const App = () => {
 
     useEffect(() => {
         // Очищаем старые локальные данные транзакций, чтобы использовать только серверные
-        localStorage.removeItem('hanna-transactions');
+        localStorage.removeItem('debt-sense-transactions');
         fetchData();
         fetchRates();
     }, []);
@@ -155,7 +155,7 @@ const App = () => {
                 const delimiter = line.includes(';') ? ';' : ',';
                 const clean = line.split(delimiter).map(col => col.replace(/"/g, '').trim());
                 if (clean.length < 12) return null;
-                if (!clean[2].includes("Ганна Є.") || (!clean[4].includes("Долги") && !clean[7].includes("Долги"))) return null;
+                if (!clean[2].includes("User") || (!clean[4].includes("Долги") && !clean[7].includes("Долги"))) return null;
                 return {
                     date: clean[0],
                     categoryName: clean[1],
@@ -632,7 +632,7 @@ const App = () => {
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = `долги_ганны_${timestamp}.csv`;
+            link.download = `finance_analysis_${timestamp}.csv`;
             link.click();
         }
 
@@ -646,7 +646,7 @@ const App = () => {
             const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = `долги_ганны_${timestamp}.json`;
+            link.download = `finance_analysis_${timestamp}.json`;
             link.click();
         }
 
@@ -656,7 +656,7 @@ const App = () => {
                 <html lang="ru">
                 <head>
                     <meta charset="UTF-8">
-                    <title>Отчет: Долги Ганны Є.</title>
+                    <title>Отчет: Финансовый Анализ</title>
                     <style>
                         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
                         body { 
@@ -712,7 +712,7 @@ const App = () => {
                 <body>
                     <div class="header">
                         <div>
-                            <h1>Финансовый Анализ: Долги Ганны</h1>
+                            <h1>Финансовый Анализ</h1>
                             <p>Сформировано: ${new Date().toLocaleString('ru')}</p>
                         </div>
                         <div class="current-debt">
