@@ -155,7 +155,7 @@ const App = () => {
                 const delimiter = line.includes(';') ? ';' : ',';
                 const clean = line.split(delimiter).map(col => col.replace(/"/g, '').trim());
                 if (clean.length < 12) return null;
-                if (!clean[2].includes("User") || (!clean[4].includes("Долги") && !clean[7].includes("Долги"))) return null;
+                if (!clean[2].includes("Ганна Є") || (!clean[4].includes("Долги") && !clean[7].includes("Долги"))) return null;
                 return {
                     date: clean[0],
                     categoryName: clean[1],
@@ -605,7 +605,8 @@ const App = () => {
 
     const filteredData = useMemo(() => {
         return data.filter(t => {
-            const matchesSearch = t.comment.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = (t.comment || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (t.payee || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchesFilter = filter === 'all' || (filter === 'given' && t.type === 'Дано в долг') || (filter === 'received' && t.type === 'Возврат');
             return matchesSearch && matchesFilter;
         });
@@ -1272,7 +1273,7 @@ const App = () => {
                     <div className="search-wrap">
                         <Search size={18} className="search-icon" />
                         <input
-                            placeholder="Поиск по комментариям..."
+                            placeholder="Поиск по комментариям или имени..."
                             value={searchQuery}
                             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                         />
