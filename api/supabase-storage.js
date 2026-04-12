@@ -12,6 +12,9 @@ const getSupabaseClient = () => {
     return supabase;
 };
 
+/** PostgREST/Supabase returns at most 1000 rows per request by default; paginate to load the full table. */
+const SUPABASE_PAGE_SIZE = 1000;
+
 export const loadTransactions = async () => {
     try {
         const client = getSupabaseClient();
@@ -19,13 +22,28 @@ export const loadTransactions = async () => {
             throw new Error('Supabase not configured');
         }
 
-        const { data, error } = await client
-            .from('transactions')
-            .select('*')
-            .order('created_date', { ascending: true });
+        const allRows = [];
+        let from = 0;
 
-        if (error) throw error;
-        return data || [];
+        for (;;) {
+            const { data, error } = await client
+                .from('transactions')
+                .select('*')
+                .order('created_date', { ascending: true })
+                .range(from, from + SUPABASE_PAGE_SIZE - 1);
+
+            if (error) throw error;
+
+            const batch = data || [];
+            allRows.push(...batch);
+
+            if (batch.length < SUPABASE_PAGE_SIZE) {
+                break;
+            }
+            from += SUPABASE_PAGE_SIZE;
+        }
+
+        return allRows;
     } catch (error) {
         console.error('Error loading from Supabase:', error);
         throw error;

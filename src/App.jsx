@@ -91,11 +91,16 @@ const App = () => {
     };
 
     const processTransactions = (raw, isDbData) => {
-        let currentDebt = 0;
+        const dateStr = (t) => t.date ?? '';
+        const toSortDate = (t) => {
+            const s = dateStr(t);
+            if (!s) return new Date(0);
+            return new Date(s.includes('.') ? s.split('.').reverse().join('-') : s);
+        };
 
-        return raw.map(t => {
-            const income = parseFloat(t.income) || 0;
-            const outcome = parseFloat(t.outcome) || 0;
+        const rows = raw.map(t => {
+            const income = parseFloat(t.income ?? t.income_amount) || 0;
+            const outcome = parseFloat(t.outcome ?? t.outcome_amount) || 0;
 
             // Правильная логика: определяем тип по счетам
             // Если деньги идут В "Долги" - это "Дано в долг"
@@ -106,40 +111,52 @@ const App = () => {
             const outcomeAccount = (t.outcome_account_name || '').toLowerCase();
 
             if (incomeAccount.includes('долги') || incomeAccount.includes('долг')) {
-                // Деньги пришли на счет "Долги" = дали в долг
                 amount = income;
                 type = 'Дано в долг';
-                currentDebt += income;
             } else if (outcomeAccount.includes('долги') || outcomeAccount.includes('долг')) {
-                // Деньги ушли со счета "Долги" = вернули долг
                 amount = outcome;
                 type = 'Возврат';
-                currentDebt -= outcome;
             } else {
-                // Fallback: используем старую логику
                 if (outcome > 0) {
                     amount = outcome;
                     type = 'Дано в долг';
-                    currentDebt += outcome;
                 } else {
                     amount = income;
                     type = 'Возврат';
-                    currentDebt -= income;
                 }
             }
 
-            const dateStr = t.date;
-            const sortDate = new Date(dateStr.split('.').reverse().join('-'));
+            const d = dateStr(t);
+            const sortDate = toSortDate(t);
 
             return {
                 ...t,
                 amount,
                 type,
-                currentDebt,
                 sortDate,
-                formattedDate: dateStr
+                formattedDate: d
             };
-        }).sort((a, b) => b.sortDate - a.sortDate);
+        });
+
+        rows.sort((a, b) => {
+            const diff = a.sortDate - b.sortDate;
+            if (diff !== 0) return diff;
+            const ca = new Date(a.created_date || a.createdDate || 0).getTime();
+            const cb = new Date(b.created_date || b.createdDate || 0).getTime();
+            return ca - cb;
+        });
+
+        let currentDebt = 0;
+        return rows
+            .map(t => {
+                if (t.type === 'Дано в долг') {
+                    currentDebt += t.amount;
+                } else {
+                    currentDebt -= t.amount;
+                }
+                return { ...t, currentDebt };
+            })
+            .sort((a, b) => b.sortDate - a.sortDate);
     };
 
     const handleFileUpload = (e) => {
