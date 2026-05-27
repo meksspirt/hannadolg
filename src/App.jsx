@@ -513,9 +513,6 @@ const App = () => {
         const daysSinceLastLoan = lastLoan ? (new Date() - lastLoan.sortDate) / (1000 * 60 * 60 * 24) : 999;
 
         if (daysSinceLastLoan >= 7) achievements.push({ id: 'discipline', icon: '🏆', title: 'Железная дисциплина', desc: '7+ дней без новых займов' });
-        if (recentMonths.length > 0 && recentMonths[0].received > (currentDebt + totalReceived) * 0.3)
-            achievements.push({ id: 'reactive', icon: '🚀', title: 'Реактивный возврат', desc: 'Вернули >30% долга за месяц' });
-        if (debtTrend === 'decreasing') achievements.push({ id: 'freedom', icon: '📉', title: 'Тренд на свободу', desc: 'Долг стабильно падает' });
 
         // 5. Мини-планировщик (анализ обещаний в комментах)
         const plannedPayments = data.filter(t => t.comment.match(/\d{2}\.\d{2}/)).map(t => {
