@@ -804,33 +804,106 @@ const App = () => {
                     )}
                 </div>
                 <div className="chart-footer">
-                    {chartMode === 'debt' && <p className="chart-hint">Пунктир — прогноз (60 дн). <span style={{ color: '#f59e0b' }}>Оранжевый пунктир</span> — линия цели.</p>}
+                    {/* Легенда */}
+                    {chartMode === 'debt' && (
+                        <div className="chart-legend">
+                            <span className="legend-item">
+                                <span className="legend-line solid blue"></span> Долг
+                            </span>
+                            <span className="legend-item">
+                                <span className="legend-line dashed blue"></span> Прогноз (60 дн)
+                            </span>
+                            {stats.burndown.length > 0 && (
+                                <span className="legend-item">
+                                    <span className="legend-line dashed orange"></span> Цель погашения
+                                </span>
+                            )}
+                            {extraPayment > 0 && (
+                                <span className="legend-item">
+                                    <span className="legend-line dashed green"></span> Ускоренный план
+                                </span>
+                            )}
+                            <span className="legend-item">
+                                <span className="legend-line dashed red"></span> Лимит
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Настройки */}
                     <div className="chart-settings">
-                        <div className="setting-item">
-                            <label>Лимит:</label>
-                            <input type="number" value={safetyLimit} onChange={(e) => {
-                                setSafetyLimit(Number(e.target.value));
-                                localStorage.setItem('safetyLimit', e.target.value);
-                            }} />
+                        <div className="settings-group">
+                            <span className="settings-group-label">Параметры</span>
+                            <div className="setting-item">
+                                <label title="Порог долга — при превышении карточка мигает">⚠️ Лимит долга, ₴</label>
+                                <input type="number" value={safetyLimit} min="0" step="1000" onChange={(e) => {
+                                    setSafetyLimit(Number(e.target.value));
+                                    localStorage.setItem('safetyLimit', e.target.value);
+                                }} />
+                            </div>
+                            <div className="setting-item">
+                                <label title="Используется для расчёта стресса и бюджета на радости">💰 Месячный доход, ₴</label>
+                                <input type="number" value={monthlyIncome} min="0" step="1000" onChange={(e) => {
+                                    setMonthlyIncome(Number(e.target.value));
+                                    localStorage.setItem('monthlyIncome', e.target.value);
+                                }} />
+                            </div>
+                            <div className="setting-item">
+                                <label title="Годовая инфляция для расчёта реальной стоимости долга">📈 Инфляция, % год.</label>
+                                <input type="number" value={inflationRate} min="0" max="100" step="1" onChange={(e) => {
+                                    setInflationRate(Number(e.target.value));
+                                    localStorage.setItem('inflationRate', e.target.value);
+                                }} />
+                            </div>
                         </div>
-                        <div className="setting-item">
-                            <label>Доход:</label>
-                            <input type="number" value={monthlyIncome} onChange={(e) => {
-                                setMonthlyIncome(Number(e.target.value));
-                                localStorage.setItem('monthlyIncome', e.target.value);
-                            }} />
-                        </div>
-                        <div className="setting-item">
-                            <label>Инфляция (%):</label>
-                            <input type="number" value={inflationRate} onChange={(e) => {
-                                setInflationRate(Number(e.target.value));
-                                localStorage.setItem('inflationRate', e.target.value);
-                            }} />
-                        </div>
+
+                        {chartMode === 'debt' && (
+                            <div className="settings-group">
+                                <span className="settings-group-label">Цель погашения</span>
+                                <div className="setting-item">
+                                    <label title="Оранжевый пунктир — план погашения к этой дате">🎯 Дата цели</label>
+                                    <input
+                                        type="date"
+                                        value={payoffTargetDate}
+                                        min={new Date().toISOString().slice(0, 10)}
+                                        onChange={(e) => {
+                                            setPayoffTargetDate(e.target.value);
+                                            localStorage.setItem('payoffTargetDate', e.target.value);
+                                        }}
+                                    />
+                                </div>
+                                {payoffTargetDate && stats.burndown.length > 0 && (() => {
+                                    const target = new Date(payoffTargetDate);
+                                    const daysLeft = Math.max(0, Math.ceil((target - new Date()) / (1000 * 60 * 60 * 24)));
+                                    const monthsLeft = (daysLeft / 30).toFixed(1);
+                                    const requiredMonthly = daysLeft > 0
+                                        ? formatAmount(stats.currentDebt / (daysLeft / 30))
+                                        : '—';
+                                    return (
+                                        <div className="burndown-info">
+                                            <span>⏳ {daysLeft} дн. ({monthsLeft} мес.)</span>
+                                            <span>Нужно возвращать: <strong>{requiredMonthly} ₴/мес</strong></span>
+                                        </div>
+                                    );
+                                })()}
+                                {payoffTargetDate && (
+                                    <button className="clear-date-btn" onClick={() => {
+                                        setPayoffTargetDate('');
+                                        localStorage.removeItem('payoffTargetDate');
+                                    }}>✕ Сбросить дату</button>
+                                )}
+                            </div>
+                        )}
                     </div>
+
+                    {/* Симулятор */}
                     {chartMode === 'debt' && (
                         <div className="simulator-control">
-                            <label>Симулятор: +{formatAmount(extraPayment)} ₴/мес к возврату</label>
+                            <div className="simulator-header">
+                                <label>🚀 Симулятор доплаты</label>
+                                <span className="simulator-value">
+                                    {extraPayment > 0 ? `+${formatAmount(extraPayment)} ₴/мес` : 'выкл.'}
+                                </span>
+                            </div>
                             <input
                                 type="range"
                                 min="0"
@@ -839,7 +912,21 @@ const App = () => {
                                 value={extraPayment}
                                 onChange={(e) => setExtraPayment(Number(e.target.value))}
                             />
-                            {extraPayment > 0 && <span className="simulator-hint">Зеленый пунктир — ускоренный план</span>}
+                            <div className="simulator-ticks">
+                                <span>0</span><span>2 500</span><span>5 000</span><span>7 500</span><span>10 000</span>
+                            </div>
+                            {extraPayment > 0 && stats.simulatorData.length > 0 && (() => {
+                                const lastPoint = stats.simulatorData[stats.simulatorData.length - 1];
+                                const monthsToZero = stats.simulatorData.findIndex(d => d.debt <= 0);
+                                return (
+                                    <div className="simulator-result">
+                                        {monthsToZero >= 0
+                                            ? <span>✅ Долг обнулится через <strong>{monthsToZero} мес.</strong></span>
+                                            : <span>📉 Через {stats.simulatorData.length - 1} мес. остаток: <strong>{formatAmount(lastPoint.debt)} ₴</strong></span>
+                                        }
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
                 </div>

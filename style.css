@@ -1492,3 +1492,216 @@ td {
     color: var(--text-muted);
     margin-top: 4px;
 }
+
+/* ===== Chart Footer Rework ===== */
+
+.chart-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+}
+
+/* Legend */
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.legend-line {
+    display: inline-block;
+    width: 28px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.legend-line.solid.blue  { background: #3b82f6; }
+.legend-line.dashed.blue { background: repeating-linear-gradient(90deg, #3b82f6 0, #3b82f6 5px, transparent 5px, transparent 10px); }
+.legend-line.dashed.orange { background: repeating-linear-gradient(90deg, #f59e0b 0, #f59e0b 4px, transparent 4px, transparent 8px); }
+.legend-line.dashed.green  { background: repeating-linear-gradient(90deg, #10b981 0, #10b981 4px, transparent 4px, transparent 8px); }
+.legend-line.dashed.red    { background: repeating-linear-gradient(90deg, #ef4444 0, #ef4444 4px, transparent 4px, transparent 8px); }
+
+/* Settings groups */
+.chart-settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.settings-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-width: 200px;
+}
+
+.settings-group-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--border);
+}
+
+.setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.setting-item label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    cursor: help;
+}
+
+.setting-item input[type="number"],
+.setting-item input[type="date"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: var(--text);
+    font-size: 0.82rem;
+    width: 130px;
+    transition: border-color 0.2s;
+}
+
+.setting-item input[type="number"]:focus,
+.setting-item input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* Burndown info */
+.burndown-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 10px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.burndown-info strong {
+    color: #f59e0b;
+}
+
+.clear-date-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    align-self: flex-start;
+    transition: all 0.2s;
+}
+
+.clear-date-btn:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+/* Simulator */
+.simulator-control {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+}
+
+.simulator-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.simulator-header label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #10b981;
+}
+
+.simulator-value {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    padding: 2px 10px;
+    border-radius: 20px;
+}
+
+.simulator-control input[type="range"] {
+    width: 100%;
+    accent-color: #10b981;
+    cursor: pointer;
+    height: 4px;
+}
+
+.simulator-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 0 2px;
+}
+
+.simulator-result {
+    padding: 8px 12px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.simulator-result strong {
+    color: #10b981;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .chart-settings {
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .settings-group {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .setting-item input[type="number"],
+    .setting-item input[type="date"] {
+        width: 140px;
+    }
+
+    .chart-legend {
+        gap: 0.75rem;
+    }
+}
