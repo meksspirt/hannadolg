@@ -3,14 +3,34 @@ import { addTransactions as addToFile } from './storage.js';
 
 const ZENMONEY_DIFF_URL = 'https://api.zenmoney.ru/v8/diff/';
 
+const toAmount = (value) => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') return Number(value) || 0;
+    if (Array.isArray(value)) return Number(value[0]) || 0;
+    if (value && typeof value === 'object') {
+        return Number(
+            value.amount ??
+            value.sum ??
+            value.value ??
+            value.money ??
+            0
+        ) || 0;
+    }
+    return 0;
+};
+
 const unixToIsoDate = (value) => {
     if (!value || Number.isNaN(Number(value))) return '';
-    return new Date(Number(value) * 1000).toISOString().slice(0, 10);
+    const numeric = Number(value);
+    const ms = numeric > 1e12 ? numeric : numeric * 1000;
+    return new Date(ms).toISOString().slice(0, 10);
 };
 
 const unixToIsoDateTime = (value) => {
     if (!value || Number.isNaN(Number(value))) return new Date().toISOString();
-    return new Date(Number(value) * 1000).toISOString();
+    const numeric = Number(value);
+    const ms = numeric > 1e12 ? numeric : numeric * 1000;
+    return new Date(ms).toISOString();
 };
 
 const getAccountName = (accountsMap, accountId) => {
@@ -19,8 +39,8 @@ const getAccountName = (accountsMap, accountId) => {
 };
 
 const mapZenTransaction = (transaction, accountsMap) => {
-    const income = Number(transaction.income) || 0;
-    const outcome = Number(transaction.outcome) || 0;
+    const income = toAmount(transaction.income);
+    const outcome = toAmount(transaction.outcome);
 
     const incomeAccountId =
         transaction.incomeAccount ??
@@ -35,8 +55,8 @@ const mapZenTransaction = (transaction, accountsMap) => {
 
     return {
         date: unixToIsoDate(transaction.date || transaction.changed),
-        categoryName: transaction.categoryName || transaction.tag || '',
-        payee: transaction.payee || transaction.merchant || '',
+        categoryName: transaction.categoryName || transaction.category || transaction.tag || '',
+        payee: transaction.payee || transaction.merchant || transaction.title || '',
         comment: transaction.comment || transaction.title || 'ZenMoney import',
         outcomeAccountName: getAccountName(accountsMap, outcomeAccountId),
         outcome,
@@ -98,14 +118,15 @@ export default async function handler(req, res) {
         const normalized = transactions
             .filter((t) => !t.deleted)
             .map((t) => mapZenTransaction(t, accountsMap))
-            .filter((t) => t.date && (t.income > 0 || t.outcome > 0));
+            .filter((t) => t.date);
 
         if (normalized.length === 0) {
             return res.status(200).json({
                 success: true,
                 added: 0,
                 source: 'zenmoney',
-                message: 'Новых транзакций из ZenMoney не найдено'
+                fetchedRaw: transactions.length,
+                message: 'Данные ZenMoney получены, но не удалось нормализовать транзакции'
             });
         }
 
