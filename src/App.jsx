@@ -12,7 +12,6 @@ import {
 import { loadFromLocalStorage, saveToLocalStorage, addToLocalStorage } from './localStorage-storage.js';
 import ParentSize from '@visx/responsive/lib/components/ParentSize';
 import DebtChart from './DebtChart';
-import { WeekdayChart, LoanSizeChart, MonthlyHeatmap } from './AdvancedAnalytics';
 import FinancialAdvice from './FinancialAdvice';
 import { format } from 'date-fns';
 
@@ -399,8 +398,9 @@ const App = () => {
 
         // Прогноз погашения (на основе среднего возврата в месяц)
         const avgReturnPerMonth = returns.length > 0 ? totalReceived / monthsDiff : 0;
-        const projectedPayoff = avgReturnPerMonth > 0 ?
-            Math.ceil(currentDebt / avgReturnPerMonth) : null;
+        const projectedPayoff = avgReturnPerMonth > 0
+            ? Math.max(0, Math.ceil(currentDebt / avgReturnPerMonth))
+            : null;
 
         // Анализ интервалов
         let intervals = [];
@@ -639,183 +639,6 @@ const App = () => {
 
     const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    const exportData = (format) => {
-        const timestamp = new Date().toISOString().slice(0, 10);
-
-        if (format === 'csv') {
-            const headers = ['Дата', 'Комментарий', 'Тип', 'Сумма', 'Остаток долга'];
-            const csvContent = [
-                headers.join(','),
-                ...data.map(t => [
-                    t.formattedDate,
-                    `"${t.comment}"`,
-                    t.type,
-                    t.amount,
-                    t.currentDebt
-                ].join(','))
-            ].join('\n');
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `finance_analysis_${timestamp}.csv`;
-            link.click();
-        }
-
-        else if (format === 'json') {
-            const jsonData = {
-                exportDate: new Date().toISOString(),
-                statistics: stats,
-                transactions: data
-            };
-
-            const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `finance_analysis_${timestamp}.json`;
-            link.click();
-        }
-
-        else if (format === 'report') {
-            const reportHtml = `
-                <!DOCTYPE html>
-                <html lang="ru">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Отчет: Финансовый Анализ</title>
-                    <style>
-                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-                        body { 
-                            font-family: 'Inter', sans-serif; 
-                            line-height: 1.5; 
-                            color: #1e293b; 
-                            margin: 0; 
-                            padding: 30px;
-                            background: #f8fafc;
-                        }
-                        .header { 
-                            display: flex; 
-                            justify-content: space-between; 
-                            align-items: center; 
-                            border-bottom: 2px solid #e2e8f0; 
-                            padding-bottom: 20px; 
-                            margin-bottom: 30px;
-                        }
-                        .header h1 { margin: 0; font-size: 22px; font-weight: 800; color: #0f172a; }
-                        .header p { margin: 5px 0 0; color: #64748b; font-size: 13px; }
-                        .current-debt { text-align: right; }
-                        .current-debt h2 { margin: 0; font-size: 24px; color: #3b82f6; font-weight: 800; }
-                        .stats-grid { 
-                            display: grid; 
-                            grid-template-columns: repeat(4, 1fr); 
-                            gap: 15px; 
-                            margin-bottom: 30px;
-                        }
-                        .stat-box { 
-                            background: white; 
-                            padding: 15px; 
-                            border-radius: 10px; 
-                            border: 1px solid #e2e8f0;
-                            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-                        }
-                        .stat-box .label { font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: block; }
-                        .stat-box .value { font-size: 18px; font-weight: 800; color: #0f172a; }
-                        .section { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px; }
-                        .section h3 { margin: 0 0 15px; font-size: 16px; font-weight: 700; border-left: 4px solid #3b82f6; padding-left: 10px; }
-                        .flex-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-                        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-                        th { background: #f1f5f9; text-align: left; padding: 10px; color: #475569; font-weight: 700; border-bottom: 2px solid #e2e8f0; }
-                        td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
-                        .badge { padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
-                        .badge.in { background: #dcfce7; color: #166534; }
-                        .badge.out { background: #fee2e2; color: #991b1b; }
-                        @media print {
-                            body { background: white; padding: 0; }
-                            .section { border: none; padding: 0; box-shadow: none; margin-bottom: 30px; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div>
-                            <h1>Финансовый Анализ</h1>
-                            <p>Сформировано: ${new Date().toLocaleString('ru')}</p>
-                        </div>
-                        <div class="current-debt">
-                            <h2>${formatAmount(stats.currentDebt)} ₴</h2>
-                            <p style="margin:0; font-size:12px; color:#64748b">Общий остаток</p>
-                        </div>
-                    </div>
-
-                    <div class="stats-grid">
-                        <div class="stat-box">
-                            <span class="label">Выдано всего</span>
-                            <div class="value">${formatAmount(stats.totalGiven)} ₴</div>
-                        </div>
-                        <div class="stat-box">
-                            <span class="label">Вернула всего</span>
-                            <div class="value">${formatAmount(stats.totalReceived)} ₴</div>
-                        </div>
-                        <div class="stat-box">
-                            <span class="label">Темп возврата</span>
-                            <div class="value">${stats.returnRate}%</div>
-                        </div>
-                        <div class="stat-box">
-                            <span class="label">Упущенная выгода</span>
-                            <div class="value" style="color:#ef4444">-${formatAmount(stats.opportunityCost)} ₴</div>
-                        </div>
-                    </div>
-
-                    <div class="flex-grid">
-                        <div class="section">
-                            <h3>Топ категорий трат</h3>
-                            ${stats.topCategories.map(c => `
-                                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                                    <span style="font-weight:600">${c.name}</span>
-                                    <span style="font-weight:700">${formatAmount(c.amount)} ₴</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <div class="section">
-                            <h3>Лидеры по надежности</h3>
-                            ${stats.reliabilityRanking.slice(0, 5).map(r => `
-                                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                                    <span style="font-weight:600">${r.name}</span>
-                                    <span class="badge ${r.score > 70 ? 'in' : 'out'}">${r.score} баллов</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <div class="section">
-                        <h3>Реестр транзакций</h3>
-                        <table>
-                            <thead>
-                                <tr><th>Дата</th><th>Детали</th><th>Тип</th><th>Сумма</th><th>Баланс</th></tr>
-                            </thead>
-                            <tbody>
-                                ${data.slice(0, 100).map(t => `
-                                    <tr>
-                                        <td>${t.formattedDate}</td>
-                                        <td>${t.comment}</td>
-                                        <td><span class="badge ${t.type === 'Возврат' ? 'in' : 'out'}">${t.type}</span></td>
-                                        <td style="font-weight:700">${formatAmount(t.amount)} ₴</td>
-                                        <td>${formatAmount(t.currentDebt)} ₴</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                        ${data.length > 100 ? `<p style="text-align:center; font-size:10px; color:#94a3b8; margin-top:10px">Отображены последние 100 транзакций. Полный список доступен в CSV/JSON.</p>` : ''}
-                    </div>
-                    <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
-                </body>
-                </html>
-            `;
-            const win = window.open('', '_blank');
-            win.document.write(reportHtml);
-            win.document.close();
-        }
-    };
 
     const formattedChartData = useMemo(() => {
         if (data.length === 0) return [];
@@ -912,7 +735,7 @@ const App = () => {
                 <div className="card stat-card info">
                     <span className="label">Примерное время возврата текущего долга</span>
                     <span className="value">
-                        {stats.projectedPayoff ? (
+                        {stats.projectedPayoff !== null ? (
                             <>{stats.projectedPayoff} <span className="value-unit">мес.</span></>
                         ) : (
                             <>Нет данных</>
@@ -939,14 +762,6 @@ const App = () => {
                         )}
                     </span>
                 </div>
-                {stats.projectedPayoff && (
-                    <div className="card stat-card info">
-                        <span className="label">Прогноз погашения</span>
-                        <span className="value">
-                            {stats.projectedPayoff} <span className="value-unit">мес.</span>
-                        </span>
-                    </div>
-                )}
             </div>
 
             <div className="card upload-card">
@@ -1040,218 +855,6 @@ const App = () => {
                 </div>
             </div>
 
-            <div className="special-metrics-grid">
-                <div className="card metric-card stress-card">
-                    <h3>Фин. Стрессометр 🌡️</h3>
-                    <div className="stress-gauge">
-                        <div className="gauge-fill" style={{ width: `${stats.stressScore}%`, background: stats.stressScore > 70 ? 'var(--danger)' : stats.stressScore > 40 ? 'var(--warning)' : 'var(--success)' }}></div>
-                    </div>
-                    <div className="stress-value">{stats.stressScore}%</div>
-                    <p className="stress-label">
-                        {stats.stressScore > 70 ? 'Критический (Нужна пауза)' : stats.stressScore > 40 ? 'Умеренный (Следите за тратами)' : 'Прохладно (Всё ок)'}
-                    </p>
-                </div>
-                <div className="card metric-card joy-card">
-                    <h3>Бюджет на радости 🍰</h3>
-                    <div className="joy-value">{formatAmount(stats.joyBudget)} ₴ <span className="per-day">/ день</span></div>
-                    <p className="chart-hint">Сколько можно тратить на себя без вреда прогнозу</p>
-                </div>
-                <div className="card metric-card inflation-card">
-                    <h3>Инфляционный профит 📉</h3>
-                    <div className="profit-value">+{formatAmount(stats.inflationProfit)} ₴</div>
-                    <p className="chart-hint">
-                        Реальный вес долга: <strong>{formatAmount(stats.realValue.real)} ₴</strong><br />
-                        Инфляция «помогла» погасить <b>{stats.realValue.percent}%</b>
-                    </p>
-                </div>
-                <div className="card metric-card currency-card">
-                    <h3>Валютный хедж 💵</h3>
-                    <div className="currency-main">
-                        <div className="c-item">
-                            <span className="c-val">${formatAmount(stats.currency.usd)}</span>
-                            <span className="c-lab">USD (@{stats.currency.rates.usd.toFixed(2)})</span>
-                        </div>
-                    </div>
-                    <p className="chart-hint">
-                        Эквивалент в €: <b>{formatAmount(stats.currency.eur)} €</b><br />
-                        Курсовая разница: <span style={{ color: stats.currency.hedgeGain > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                            {stats.currency.hedgeGain > 0 ? '+' : ''}{stats.currency.hedgeGain.toFixed(2)} USD
-                        </span> (vs 40.0)
-                    </p>
-                </div>
-            </div>
-
-            <div className="advanced-grid">
-                <div className="card analytics-card">
-                    <h3>Интенсивность займов</h3>
-                    <div className="interval-display">
-                        <div className="interval-main">
-                            <span className="interval-value">{stats.intervals.avg}</span>
-                            <span className="interval-label">дн. в среднем</span>
-                        </div>
-                        <div className={`interval-trend ${stats.intervals.trend}`}>
-                            {stats.intervals.trend === 'decreasing' ? 'Займы участились ⚠️' : 'Паузы растут ✅'}
-                        </div>
-                    </div>
-                    <p className="chart-hint">Средний перерыв между новыми долгами</p>
-                </div>
-                <div className="card analytics-card">
-                    <h3>Активность по дням недели</h3>
-                    <div className="chart-box-mini">
-                        <WeekdayChart data={stats.weekdayStats} theme={theme} />
-                    </div>
-                </div>
-                <div className="card analytics-card">
-                    <h3>Распределение по размерам</h3>
-                    <div className="chart-box-mini">
-                        <LoanSizeChart data={stats.loanSizeStats} theme={theme} />
-                    </div>
-                </div>
-                <div className="card analytics-card">
-                    <h3>Частота по дням месяца</h3>
-                    <div className="chart-box-mini">
-                        <MonthlyHeatmap data={stats.daysOfMonthData} theme={theme} />
-                    </div>
-                    <p className="chart-hint">Яркость — количество транзакций в этот день месяца</p>
-                </div>
-                <div className="card analytics-card habbits-card">
-                    <h3>Детектор привычек 🚬</h3>
-                    <div className="habbits-display">
-                        <div className="habbit-main">
-                            <span className="habbit-label">Траты на вредные привычки</span>
-                            <span className="habbit-value">{formatAmount(stats.badHabits.total)} ₴</span>
-                        </div>
-                        <div className="habbit-savings">
-                            <span className="savings-label">Если сократить на 50%, вы сэкономите:</span>
-                            <span className="savings-value">+{formatAmount(stats.badHabits.potentialSavings)} ₴</span>
-                        </div>
-                        <div className="habbit-impact">
-                            <span className="impact-label">Это ускорит закрытие долгов на:</span>
-                            <span className="impact-value">
-                                {stats.badHabits.potentialSavings > 0 ? Math.ceil(stats.currentDebt / (stats.avgMonthlyGiven + stats.badHabits.potentialSavings)) : 0} мес.
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div className="card analytics-card aging-card">
-                    <h3>Стаж Ваших долгов 👴</h3>
-                    <div className="aging-display">
-                        <div className="aging-value">{stats.debtAgeDays} <span className="days-label">дней</span></div>
-                        <div className="aging-desc">Прошло с момента самого первого займа в списке</div>
-                        <div className="aging-progress">
-                            <div className="aging-bar" style={{ width: `${Math.min(100, (stats.debtAgeDays / 365) * 100)}%`, background: stats.debtAgeDays > 180 ? 'var(--danger)' : 'var(--primary)' }}></div>
-                        </div>
-                        <p className="chart-hint">{stats.debtAgeDays > 365 ? 'Этот долг уже отметил день рождения. Пора прощаться!' : 'Пока еще свежий, не дайте ему пустить корни.'}</p>
-                    </div>
-                </div>
-                <div className="card analytics-card liberty-card">
-                    <h3>Ваша «Цена Свободы» 🔓</h3>
-                    <div className="liberty-display">
-                        <div className="liberty-main">
-                            <span className="liberty-value">+{formatAmount(stats.liberty.value)} ₴</span>
-                            <span className="liberty-label">в месяц</span>
-                        </div>
-                        <p className="liberty-desc">
-                            Столько денег у вас <b>прибавится</b> к свободному бюджету сразу после закрытия всех долгов.
-                        </p>
-                        <div className="liberty-percent-bar">
-                            <span className="p-label">Это {stats.liberty.percentage}% вашего дохода</span>
-                            <div className="p-track"><div className="p-fill" style={{ width: `${stats.liberty.percentage}%` }}></div></div>
-                        </div>
-                    </div>
-                </div>
-                {stats.anomalies.length > 0 && (
-                    <div className="card analytics-card anomalies-card">
-                        <h3>Детектор аномалий 🕳️</h3>
-                        <div className="anomalies-list">
-                            {stats.anomalies.map((ano, i) => (
-                                <div key={i} className="anomaly-item">
-                                    <span className="ano-icon">🚨</span>
-                                    <span className="ano-msg">{ano.msg}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                <div className="card analytics-card strategies-card">
-                    <h3>Стратегии погашения ❄️🌋</h3>
-                    <div className="strategies-tabs">
-                        <div className="strategy-col">
-                            <h4>Снежный ком (мелкие)</h4>
-                            {stats.strategies.snowball.map(([name, amt], i) => (
-                                <div key={i} className="strat-item">{name}: {formatAmount(amt)} ₴</div>
-                            ))}
-                        </div>
-                        <div className="strategy-col">
-                            <h4>Лавина (крупные)</h4>
-                            {stats.strategies.avalanche.map(([name, amt], i) => (
-                                <div key={i} className="strat-item">{name}: {formatAmount(amt)} ₴</div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="card analytics-card trust-card">
-                    <h3>Рейтинг надежности (Trust Score) 🎖️</h3>
-                    <div className="trust-list">
-                        {stats.reliabilityRanking.slice(0, 5).map((debtor, i) => (
-                            <div key={i} className="trust-item">
-                                <div className="trust-info">
-                                    <span className="trust-name">{debtor.name}</span>
-                                    <span className="trust-meta">Возврат: {debtor.ratio}%</span>
-                                </div>
-                                <div className="trust-badge-wrap">
-                                    <span className={`trust-badge ${debtor.score > 80 ? 'high' : debtor.score > 40 ? 'mid' : 'low'}`}>
-                                        {debtor.score}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <p className="chart-hint">Баллы на основе скорости и объема возвратов</p>
-                </div>
-
-                <div className="card analytics-card stale-card">
-                    <h3>«Зависшие» должники 🧊</h3>
-                    <div className="stale-list">
-                        {stats.staleLoans.length > 0 ? stats.staleLoans.map((s, i) => (
-                            <div key={i} className="stale-item">
-                                <span className="stale-name">{s.name}</span>
-                                <span className="stale-days">Молчит {s.lastActivity} дн.</span>
-                            </div>
-                        )) : (
-                            <div className="stale-empty">Критически замерзших долгов нет ✨</div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="card metric-card opportunity-card">
-                    <h3>Упущенная выгода 💸</h3>
-                    <div className="opportunity-value">-{formatAmount(stats.opportunityCost)} ₴</div>
-                    <p className="chart-hint">Столько вы могли бы заработать на депозите (15% APR)</p>
-                </div>
-            </div>
-
-            {/* Топ категорий */}
-            <div className="card analytics-card">
-                <h3>Топ категорий трат</h3>
-                <div className="categories-list">
-                    {stats.topCategories.map((cat, i) => (
-                        <div key={i} className="category-item">
-                            <div className="category-info">
-                                <span className="category-name">{cat.name}</span>
-                                <span className="category-amount">{formatAmount(cat.amount)} ₴</span>
-                            </div>
-                            <div className="category-bar">
-                                <div
-                                    className="category-fill"
-                                    style={{ width: `${cat.percentage}%` }}
-                                ></div>
-                            </div>
-                            <span className="category-percent">{cat.percentage}%</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
 
             {/* Месячная статистика */}
             <div className="card analytics-card">
@@ -1283,21 +886,6 @@ const App = () => {
                 </div>
             </div>
 
-            {/* Экспорт данных */}
-            <div className="card export-card">
-                <h3>Экспорт данных</h3>
-                <div className="export-buttons">
-                    <button className="export-btn csv" onClick={() => exportData('csv')}>
-                        📊 Скачать CSV
-                    </button>
-                    <button className="export-btn json" onClick={() => exportData('json')}>
-                        📄 Скачать JSON
-                    </button>
-                    <button className="export-btn report" onClick={() => exportData('report')}>
-                        📈 Отчет (HTML)
-                    </button>
-                </div>
-            </div>
 
             <div className="card list-card">
                 <div className="list-header">
