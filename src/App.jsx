@@ -33,6 +33,7 @@ const App = () => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [syncingZen, setSyncingZen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
@@ -50,6 +51,17 @@ const App = () => {
         localStorage.removeItem('debt-sense-transactions');
         fetchData();
         fetchRates();
+    }, []);
+
+    useEffect(() => {
+        const maybeAutoSync = async () => {
+            const lastSyncAt = Number(localStorage.getItem('zenmoneyLastSyncAt') || 0);
+            const twelveHoursMs = 12 * 60 * 60 * 1000;
+            if (Date.now() - lastSyncAt < twelveHoursMs) return;
+            await handleZenMoneySync(false);
+        };
+
+        maybeAutoSync();
     }, []);
 
     const fetchRates = async () => {
@@ -237,6 +249,36 @@ const App = () => {
             }
         };
         reader.readAsText(file, 'UTF-8');
+    };
+
+    const handleZenMoneySync = async (showSuccessAlert = true) => {
+        setSyncingZen(true);
+        try {
+            const res = await fetch('/api/sync-zenmoney', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const result = await res.json();
+
+            if (!res.ok) {
+                throw new Error(result.error || 'ZenMoney sync failed');
+            }
+
+            localStorage.setItem('zenmoneyLastSyncAt', String(Date.now()));
+            if (showSuccessAlert) {
+                alert(result.message || 'Синхронизация ZenMoney завершена');
+            }
+            setIsOnline(true);
+            await fetchData();
+        } catch (error) {
+            console.error('ZenMoney sync error:', error);
+            if (showSuccessAlert) {
+                alert(`Ошибка синхронизации ZenMoney: ${error.message}`);
+            }
+        } finally {
+            setSyncingZen(false);
+        }
     };
 
     const stats = useMemo(() => {
@@ -777,6 +819,9 @@ const App = () => {
                         <Upload size={20} />
                         {uploading ? 'Загрузка...' : 'Выбрать CSV таблицу'}
                     </label>
+                    <button className="retry-btn" onClick={handleZenMoneySync} disabled={syncingZen || uploading}>
+                        {syncingZen ? 'Синхронизация ZenMoney...' : 'Синхронизировать с ZenMoney'}
+                    </button>
                     {!isOnline && (
                         <button className="retry-btn" onClick={fetchData} disabled={loading}>
                             <Wifi size={16} />
