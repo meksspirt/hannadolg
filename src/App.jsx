@@ -434,23 +434,23 @@ const App = () => {
         const isOverLimit = currentDebt > safetyLimit;
 
         // Интерактивный симулятор (Что если?)
-        // Показывает как изменится долг если доплачивать extraPayment сверх текущего темпа
-        // Учитывает: продолжающуюся выдачу (monthlyGivenRate) и возврат (monthlyReceivedRate + extraPayment)
+        // Отвечает на вопрос: за сколько месяцев погасится ТЕКУЩИЙ долг,
+        // если она будет возвращать (средний возврат за 60 дн + доплата) в месяц.
+        // Новые займы не учитываются — это сценарий погашения, а не прогноз.
         let simulatorData = [];
         if (extraPayment > 0) {
-            // Чистое изменение долга в месяц с доплатой:
-            // выдача продолжается в том же темпе, возврат увеличивается на extraPayment
-            const netMonthlyWithExtra = monthlyGivenRate - (monthlyReceivedRate + extraPayment);
-            // Строим до погашения или до 36 месяцев
-            for (let i = 0; i <= 36; i++) {
-                const projectedDebt = currentDebt + netMonthlyWithExtra * i;
-                const date = new Date();
-                date.setMonth(date.getMonth() + i);
-                simulatorData.push({
-                    date,
-                    debt: Math.max(0, projectedDebt)
-                });
-                if (projectedDebt <= 0) break; // долг погашен — дальше не строим
+            const totalMonthlyReturn = monthlyReceivedRate + extraPayment;
+            if (totalMonthlyReturn > 0) {
+                for (let i = 0; i <= 36; i++) {
+                    const remaining = currentDebt - totalMonthlyReturn * i;
+                    const date = new Date();
+                    date.setMonth(date.getMonth() + i);
+                    simulatorData.push({
+                        date,
+                        debt: Math.max(0, remaining)
+                    });
+                    if (remaining <= 0) break;
+                }
             }
         }
 
@@ -933,19 +933,24 @@ const App = () => {
                             {extraPayment > 0 && stats.simulatorData.length > 0 && (() => {
                                 const lastPoint = stats.simulatorData[stats.simulatorData.length - 1];
                                 const monthsToZero = stats.simulatorData.findIndex(d => d.debt <= 0);
-                                // Прогноз без доплаты через то же кол-во месяцев
                                 const simMonths = stats.simulatorData.length - 1;
-                                const debtWithoutExtra = stats.currentDebt + (stats._netMonthlyChange || 0) * simMonths;
-                                const saving = Math.max(0, debtWithoutExtra) - lastPoint.debt;
+                                // Сколько месяцев без доплаты (только базовый возврат)
+                                const baseReturn = stats._monthlyReceivedRate || 0;
+                                const monthsWithoutExtra = baseReturn > 0
+                                    ? Math.ceil(stats.currentDebt / baseReturn)
+                                    : null;
+                                const monthsSaved = (monthsToZero > 0 && monthsWithoutExtra)
+                                    ? monthsWithoutExtra - monthsToZero
+                                    : null;
                                 return (
                                     <div className="simulator-result">
                                         {monthsToZero > 0
                                             ? <span>✅ Долг обнулится через <strong>{monthsToZero} мес.</strong></span>
                                             : <span>📉 Через {simMonths} мес. остаток: <strong>{formatAmount(lastPoint.debt)} ₴</strong></span>
                                         }
-                                        {saving > 100 && (
+                                        {monthsSaved > 0 && (
                                             <span style={{display:'block', marginTop:'4px', color:'#10b981'}}>
-                                                💡 Экономия vs без доплаты: <strong>{formatAmount(saving)} ₴</strong>
+                                                💡 Быстрее на <strong>{monthsSaved} мес.</strong> vs без доплаты
                                             </span>
                                         )}
                                     </div>
