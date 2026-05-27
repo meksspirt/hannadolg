@@ -41,9 +41,26 @@ const unixToIsoDateTime = (value) => {
 };
 
 const getAccountName = (accountsMap, accountId) => {
-    if (!accountId) return 'Долги';
-    return accountsMap.get(accountId) || 'Долги';
+    if (!accountId) return 'Unknown';
+    return accountsMap.get(accountId) || 'Unknown';
 };
+const isDebtAccountName = (name) => {
+    const value = (name || '').toLowerCase();
+    return value.includes('долг') || value.includes('debt');
+};
+
+const isHannaCounterparty = (transaction) => {
+    const haystack = [
+        transaction.payee,
+        transaction.comment,
+        transaction.categoryName
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+    return haystack.includes('ганна є');
+};
+
 
 const mapZenTransaction = (transaction, accountsMap) => {
     const income = toAmount(transaction.income);
@@ -137,7 +154,9 @@ export default async function handler(req, res) {
         const normalized = transactions
             .filter((t) => !t.deleted)
             .map((t) => mapZenTransaction(t, accountsMap))
-            .filter((t) => t.date);
+            .filter((t) => t.date)
+            .filter((t) => isDebtAccountName(t.incomeAccountName) || isDebtAccountName(t.outcomeAccountName))
+            .filter(isHannaCounterparty);
 
         if (normalized.length === 0) {
             return res.status(200).json({

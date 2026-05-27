@@ -102,6 +102,19 @@ const App = () => {
     };
 
     const processTransactions = (raw, isDbData) => {
+        const isHannaCounterparty = (transaction) => {
+            const haystack = [
+                transaction.payee,
+                transaction.comment,
+                transaction.category_name,
+                transaction.categoryName
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return haystack.includes('ганна є');
+        };
+
         const dateStr = (t) => t.date ?? '';
         const toSortDate = (t) => {
             const s = dateStr(t);
@@ -109,7 +122,7 @@ const App = () => {
             return new Date(s.includes('.') ? s.split('.').reverse().join('-') : s);
         };
 
-        const rows = raw.map(t => {
+        const rows = raw.filter(isHannaCounterparty).map(t => {
             const income = parseFloat(t.income ?? t.income_amount) || 0;
             const outcome = parseFloat(t.outcome ?? t.outcome_amount) || 0;
 
@@ -121,20 +134,18 @@ const App = () => {
             const incomeAccount = (t.income_account_name || '').toLowerCase();
             const outcomeAccount = (t.outcome_account_name || '').toLowerCase();
 
-            if (incomeAccount.includes('долги') || incomeAccount.includes('долг')) {
+            const isDebtIncome = incomeAccount.includes('долги') || incomeAccount.includes('долг');
+            const isDebtOutcome = outcomeAccount.includes('долги') || outcomeAccount.includes('долг');
+
+            if (isDebtIncome) {
                 amount = income;
                 type = 'Дано в долг';
-            } else if (outcomeAccount.includes('долги') || outcomeAccount.includes('долг')) {
+            } else if (isDebtOutcome) {
                 amount = outcome;
                 type = 'Возврат';
             } else {
-                if (outcome > 0) {
-                    amount = outcome;
-                    type = 'Дано в долг';
-                } else {
-                    amount = income;
-                    type = 'Возврат';
-                }
+                // Не учитываем транзакции, не связанные со счетом "Долги"
+                return null;
             }
 
             const d = dateStr(t);
@@ -147,7 +158,7 @@ const App = () => {
                 sortDate,
                 formattedDate: d
             };
-        });
+        }).filter(Boolean);
 
         rows.sort((a, b) => {
             const diff = a.sortDate - b.sortDate;
