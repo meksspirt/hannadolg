@@ -238,7 +238,7 @@ const App = () => {
             avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
             weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
-            simulatorData: [], benchmarks: { monthlyChange: 0, intervalChange: 0 },
+            simulatorData: [], _monthlyReceivedRate: 0, benchmarks: { monthlyChange: 0, intervalChange: 0 },
             badHabits: { total: 0, potentialSavings: 0 }, achievements: [], plannedPayments: [],
             inflationProfit: 0, stressScore: 0, joyBudget: 0, anomalies: [],
             milestones: [], strategies: { snowball: [], avalanche: [] },
@@ -333,24 +333,29 @@ const App = () => {
             };
         });
 
-        // Прогноз (упрощенный линейный на основе последних 60 дней)
+        // Прогноз на основе последних 60 дней — учитываем выдачу и возврат раздельно
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-        const recentTrans = cumulativeData.filter(d => d.date >= sixtyDaysAgo);
-        let forecastData = [];
-        if (recentTrans.length >= 2) {
-            const start = recentTrans[0];
-            const end = recentTrans[recentTrans.length - 1];
-            const daysDiff = (end.date - start.date) / (1000 * 60 * 60 * 24);
-            const debtDiff = end.debt - start.debt;
-            const debtPerDay = debtDiff / (daysDiff || 1);
+        const recentLoans   = loans.filter(t => t.sortDate >= sixtyDaysAgo);
+        const recentReturns = returns.filter(t => t.sortDate >= sixtyDaysAgo);
 
+        let forecastData = [];
+        // Считаем суммы за период и переводим в месячный темп (60 дн → 30 дн)
+        const recentGiven    = recentLoans.reduce((s, t) => s + t.amount, 0);
+        const recentReceived = recentReturns.reduce((s, t) => s + t.amount, 0);
+        const monthlyGivenRate    = recentGiven    / 2; // за 60 дн → /2 = в месяц
+        const monthlyReceivedRate = recentReceived / 2;
+        const netMonthlyChange    = monthlyGivenRate - monthlyReceivedRate;
+
+        // Строим прогноз только если есть хоть какая-то активность за 60 дней
+        if (recentLoans.length > 0 || recentReturns.length > 0) {
+            const currentDebtNow = data.length > 0 ? data[0].currentDebt : 0;
             for (let i = 1; i <= 6; i++) {
-                const fDate = new Date(end.date);
+                const fDate = new Date();
                 fDate.setMonth(fDate.getMonth() + i);
                 forecastData.push({
                     date: fDate,
-                    debt: Math.max(0, end.debt + (debtPerDay * 30 * i)),
+                    debt: Math.max(0, currentDebtNow + netMonthlyChange * i),
                     isForecast: true
                 });
             }
@@ -429,12 +434,15 @@ const App = () => {
         const isOverLimit = currentDebt > safetyLimit;
 
         // Интерактивный симулятор (Что если?)
+        // База — средний возврат за последние 60 дней (тот же период что и прогноз)
+        // extraPayment добавляется поверх этой базы
         let simulatorData = [];
         if (extraPayment > 0) {
-            const monthlyRepayment = (returns.length > 0 ? (totalReceived / monthsDiff) : 0) + extraPayment;
+            const baseMonthlyReturn = monthlyReceivedRate; // уже посчитано выше из 60 дней
+            const monthlyRepayment = baseMonthlyReturn + extraPayment;
             if (monthlyRepayment > 0) {
                 const monthsToPayoff = Math.ceil(currentDebt / monthlyRepayment);
-                for (let i = 0; i <= Math.min(12, monthsToPayoff); i++) {
+                for (let i = 0; i <= Math.min(24, monthsToPayoff); i++) {
                     const date = new Date();
                     date.setMonth(date.getMonth() + i);
                     simulatorData.push({
@@ -589,6 +597,7 @@ const App = () => {
             cumulativeData,
             forecastData,
             simulatorData,
+            _monthlyReceivedRate: monthlyReceivedRate,
             benchmarks,
             badHabits: { total: badHabitsTotal, potentialSavings },
             achievements,
@@ -811,7 +820,7 @@ const App = () => {
                                 <span className="legend-line solid blue"></span> Долг
                             </span>
                             <span className="legend-item">
-                                <span className="legend-line dashed blue"></span> Прогноз (60 дн)
+                                <span className="legend-line dashed blue"></span> Прогноз (выдача − возврат, 60 дн)
                             </span>
                             {stats.burndown.length > 0 && (
                                 <span className="legend-item">
@@ -914,6 +923,10 @@ const App = () => {
                             />
                             <div className="simulator-ticks">
                                 <span>0</span><span>2 500</span><span>5 000</span><span>7 500</span><span>10 000</span>
+                            </div>
+                            <div className="simulator-base-hint">
+                                База возврата (60 дн): <strong>{formatAmount(stats._monthlyReceivedRate || 0)} ₴/мес</strong>
+                                {extraPayment > 0 && <> → итого: <strong style={{color:'#10b981'}}>{formatAmount((stats._monthlyReceivedRate || 0) + extraPayment)} ₴/мес</strong></>}
                             </div>
                             {extraPayment > 0 && stats.simulatorData.length > 0 && (() => {
                                 const lastPoint = stats.simulatorData[stats.simulatorData.length - 1];

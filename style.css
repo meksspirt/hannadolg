@@ -1705,3 +1705,16 @@ td {
         gap: 0.75rem;
     }
 }
+
+.simulator-base-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.simulator-base-hint strong {
+    color: var(--text);
+}
