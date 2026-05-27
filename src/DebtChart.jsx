@@ -186,7 +186,7 @@ const DebtChart = ({
                             )}
                             {simulatorData.length > 0 && data.length > 0 && (
                                 <LinePath
-                                    data={[data[data.length - 1], ...simulatorData]}
+                                    data={simulatorData}
                                     x={(d) => dateScale(getDate(d)) ?? 0}
                                     y={(d) => debtScale(getDebtValue(d)) ?? 0}
                                     stroke="#10b981"

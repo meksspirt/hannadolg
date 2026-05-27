@@ -238,7 +238,7 @@ const App = () => {
             avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
             weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
-            simulatorData: [], _monthlyReceivedRate: 0, benchmarks: { monthlyChange: 0, intervalChange: 0 },
+            simulatorData: [], _monthlyReceivedRate: 0, _netMonthlyChange: 0, benchmarks: { monthlyChange: 0, intervalChange: 0 },
             badHabits: { total: 0, potentialSavings: 0 }, achievements: [], plannedPayments: [],
             inflationProfit: 0, stressScore: 0, joyBudget: 0, anomalies: [],
             milestones: [], strategies: { snowball: [], avalanche: [] },
@@ -434,22 +434,23 @@ const App = () => {
         const isOverLimit = currentDebt > safetyLimit;
 
         // Интерактивный симулятор (Что если?)
-        // База — средний возврат за последние 60 дней (тот же период что и прогноз)
-        // extraPayment добавляется поверх этой базы
+        // Показывает как изменится долг если доплачивать extraPayment сверх текущего темпа
+        // Учитывает: продолжающуюся выдачу (monthlyGivenRate) и возврат (monthlyReceivedRate + extraPayment)
         let simulatorData = [];
         if (extraPayment > 0) {
-            const baseMonthlyReturn = monthlyReceivedRate; // уже посчитано выше из 60 дней
-            const monthlyRepayment = baseMonthlyReturn + extraPayment;
-            if (monthlyRepayment > 0) {
-                const monthsToPayoff = Math.ceil(currentDebt / monthlyRepayment);
-                for (let i = 0; i <= Math.min(24, monthsToPayoff); i++) {
-                    const date = new Date();
-                    date.setMonth(date.getMonth() + i);
-                    simulatorData.push({
-                        date,
-                        debt: Math.max(0, currentDebt - monthlyRepayment * i)
-                    });
-                }
+            // Чистое изменение долга в месяц с доплатой:
+            // выдача продолжается в том же темпе, возврат увеличивается на extraPayment
+            const netMonthlyWithExtra = monthlyGivenRate - (monthlyReceivedRate + extraPayment);
+            // Строим до погашения или до 36 месяцев
+            for (let i = 0; i <= 36; i++) {
+                const projectedDebt = currentDebt + netMonthlyWithExtra * i;
+                const date = new Date();
+                date.setMonth(date.getMonth() + i);
+                simulatorData.push({
+                    date,
+                    debt: Math.max(0, projectedDebt)
+                });
+                if (projectedDebt <= 0) break; // долг погашен — дальше не строим
             }
         }
 
@@ -598,6 +599,7 @@ const App = () => {
             forecastData,
             simulatorData,
             _monthlyReceivedRate: monthlyReceivedRate,
+            _netMonthlyChange: netMonthlyChange,
             benchmarks,
             badHabits: { total: badHabitsTotal, potentialSavings },
             achievements,
@@ -931,12 +933,21 @@ const App = () => {
                             {extraPayment > 0 && stats.simulatorData.length > 0 && (() => {
                                 const lastPoint = stats.simulatorData[stats.simulatorData.length - 1];
                                 const monthsToZero = stats.simulatorData.findIndex(d => d.debt <= 0);
+                                // Прогноз без доплаты через то же кол-во месяцев
+                                const simMonths = stats.simulatorData.length - 1;
+                                const debtWithoutExtra = stats.currentDebt + (stats._netMonthlyChange || 0) * simMonths;
+                                const saving = Math.max(0, debtWithoutExtra) - lastPoint.debt;
                                 return (
                                     <div className="simulator-result">
-                                        {monthsToZero >= 0
+                                        {monthsToZero > 0
                                             ? <span>✅ Долг обнулится через <strong>{monthsToZero} мес.</strong></span>
-                                            : <span>📉 Через {stats.simulatorData.length - 1} мес. остаток: <strong>{formatAmount(lastPoint.debt)} ₴</strong></span>
+                                            : <span>📉 Через {simMonths} мес. остаток: <strong>{formatAmount(lastPoint.debt)} ₴</strong></span>
                                         }
+                                        {saving > 100 && (
+                                            <span style={{display:'block', marginTop:'4px', color:'#10b981'}}>
+                                                💡 Экономия vs без доплаты: <strong>{formatAmount(saving)} ₴</strong>
+                                            </span>
+                                        )}
                                     </div>
                                 );
                             })()}
