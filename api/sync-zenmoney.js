@@ -3,6 +3,13 @@ import { addTransactions as addToFile } from './storage.js';
 
 const ZENMONEY_DIFF_URL = 'https://api.zenmoney.ru/v8/diff/';
 
+const asArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'object') return Object.values(value);
+    return [];
+};
+
 const toAmount = (value) => {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') return Number(value) || 0;
@@ -53,8 +60,17 @@ const mapZenTransaction = (transaction, accountsMap) => {
         transaction.outcomeAccountId ??
         null;
 
+    const dateValue =
+        transaction.date ??
+        transaction.changed ??
+        transaction.created ??
+        transaction.created_at ??
+        transaction.timestamp ??
+        transaction.time ??
+        null;
+
     return {
-        date: unixToIsoDate(transaction.date || transaction.changed),
+        date: unixToIsoDate(dateValue) || new Date().toISOString().slice(0, 10),
         categoryName: transaction.categoryName || transaction.category || transaction.tag || '',
         payee: transaction.payee || transaction.merchant || transaction.title || '',
         comment: transaction.comment || transaction.title || 'ZenMoney import',
@@ -62,11 +78,12 @@ const mapZenTransaction = (transaction, accountsMap) => {
         outcome,
         incomeAccountName: getAccountName(accountsMap, incomeAccountId),
         income,
-        createdDate: unixToIsoDateTime(transaction.changed || transaction.date),
+        createdDate: unixToIsoDateTime(dateValue),
         rawLine: JSON.stringify({
             id: transaction.id,
             changed: transaction.changed,
-            date: transaction.date
+            date: transaction.date,
+            keys: Object.keys(transaction || {})
         })
     };
 };
@@ -110,8 +127,10 @@ export default async function handler(req, res) {
         }
 
         const diff = await response.json();
-        const accounts = Array.isArray(diff.account) ? diff.account : [];
-        const transactions = Array.isArray(diff.transaction) ? diff.transaction : [];
+        const diffRoot = diff?.data || diff?.result || diff;
+
+        const accounts = asArray(diffRoot?.account);
+        const transactions = asArray(diffRoot?.transaction);
 
         const accountsMap = new Map(accounts.map((a) => [a.id, a.title || a.name || 'Долги']));
 
@@ -126,6 +145,7 @@ export default async function handler(req, res) {
                 added: 0,
                 source: 'zenmoney',
                 fetchedRaw: transactions.length,
+                sampleTransactionKeys: transactions[0] ? Object.keys(transactions[0]) : [],
                 message: 'Данные ZenMoney получены, но не удалось нормализовать транзакции'
             });
         }
