@@ -103,16 +103,8 @@ const App = () => {
 
     const processTransactions = (raw, isDbData) => {
         const isHannaCounterparty = (transaction) => {
-            const haystack = [
-                transaction.payee,
-                transaction.comment,
-                transaction.category_name,
-                transaction.categoryName
-            ]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase();
-            return haystack.includes('ганна є');
+            const payee = (transaction.payee || '').toLowerCase();
+            return payee.includes('ганна є');
         };
 
         const dateStr = (t) => t.date ?? '';
@@ -181,6 +173,44 @@ const App = () => {
             .sort((a, b) => b.sortDate - a.sortDate);
     };
 
+    const uploadTransactions = async (
+        transactions,
+        emptyMessage = 'Транзакций не обнаружено.',
+        showSuccessAlert = true
+    ) => {
+        if (!Array.isArray(transactions) || transactions.length === 0) {
+            if (showSuccessAlert) {
+                alert(emptyMessage);
+            }
+            return;
+        }
+
+        setUploading(true);
+        try {
+            const res = await fetch('/api/add-transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transactions)
+            });
+
+            if (!res.ok) {
+                throw new Error('Server error');
+            }
+
+            const result = await res.json();
+            if (showSuccessAlert) {
+                alert(result.message || 'Данные синхронизированы с сервером!');
+            }
+            setIsOnline(true);
+            fetchData();
+        } catch (e) {
+            console.warn('Не удалось загрузить на сервер:', e);
+            alert(`Ошибка загрузки: ${e.message}`);
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -209,55 +239,7 @@ const App = () => {
                 };
             }).filter(Boolean);
 
-            if (parsed.length === 0) {
-                alert('Транзакций не обнаружено.');
-                return;
-            }
-
-            setUploading(true);
-            try {
-                // Пытаемся загрузить на сервер
-                const res = await fetch('/api/add-transactions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(parsed)
-                });
-
-                if (res.ok) {
-                    const result = await res.json();
-                    alert(result.message || 'Данные синхронизированы с сервером!');
-                    setIsOnline(true);
-                    fetchData();
-                } else {
-                    throw new Error('Server error');
-                }
-            } catch (e) {
-                console.warn('Не удалось загрузить на сервер, сохраняем локально:', e);
-
-                // Сохраняем локально
-                const formatted = parsed.map(t => ({
-                    date: t.date,
-                    category_name: t.categoryName,
-                    payee: t.payee,
-                    comment: t.comment,
-                    outcome_account_name: t.outcomeAccountName,
-                    outcome: t.outcome,
-                    outcome_currency: 'UAH',
-                    income_account_name: t.incomeAccountName,
-                    income: t.income,
-                    income_currency: 'UAH',
-                    created_date: t.createdDate,
-                    changed_date: null,
-                    raw_line: t.rawLine
-                }));
-
-                const addedCount = formatted.length;
-                alert(`Успешно загружено: ${addedCount} транзакций`);
-                setIsOnline(true);
-                fetchData();
-            } finally {
-                setUploading(false);
-            }
+            await uploadTransactions(parsed);
         };
         reader.readAsText(file, 'UTF-8');
     };
@@ -276,12 +258,14 @@ const App = () => {
                 throw new Error(result.error || 'ZenMoney sync failed');
             }
 
-            localStorage.setItem('zenmoneyLastSyncAt', String(Date.now()));
-            if (showSuccessAlert) {
-                alert(result.message || 'Синхронизация ZenMoney завершена');
+            await uploadTransactions(
+                result.transactions || [],
+                'Транзакций из ZenMoney не найдено.',
+                showSuccessAlert
+            );
+            if ((result.transactions || []).length > 0) {
+                localStorage.setItem('zenmoneyLastSyncAt', String(Date.now()));
             }
-            setIsOnline(true);
-            await fetchData();
         } catch (error) {
             console.error('ZenMoney sync error:', error);
             if (showSuccessAlert) {

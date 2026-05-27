@@ -1,6 +1,3 @@
-import { addTransactions as addToSupabase } from './supabase-storage.js';
-import { addTransactions as addToFile } from './storage.js';
-
 const ZENMONEY_DIFF_URL = 'https://api.zenmoney.ru/v8/diff/';
 
 const asArray = (value) => {
@@ -46,19 +43,12 @@ const getAccountName = (accountsMap, accountId) => {
 };
 const isDebtAccountName = (name) => {
     const value = (name || '').toLowerCase();
-    return value.includes('долг') || value.includes('debt');
+    return value.includes('долги');
 };
 
 const isHannaCounterparty = (transaction) => {
-    const haystack = [
-        transaction.payee,
-        transaction.comment,
-        transaction.categoryName
-    ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-    return haystack.includes('ганна є');
+    const payee = (transaction.payee || '').toLowerCase();
+    return payee.includes('ганна є');
 };
 
 
@@ -158,68 +148,13 @@ export default async function handler(req, res) {
             .filter((t) => isDebtAccountName(t.incomeAccountName) || isDebtAccountName(t.outcomeAccountName))
             .filter(isHannaCounterparty);
 
-        if (normalized.length === 0) {
-            return res.status(200).json({
-                success: true,
-                added: 0,
-                source: 'zenmoney',
-                fetchedRaw: transactions.length,
-                sampleTransactionKeys: transactions[0] ? Object.keys(transactions[0]) : [],
-                message: 'Данные ZenMoney получены, но не удалось нормализовать транзакции'
-            });
-        }
-
-        let added = 0;
-        let storage = 'file';
-
-        if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
-            try {
-                added = await addToSupabase(normalized);
-                storage = 'supabase';
-            } catch (supabaseError) {
-                console.warn('Supabase failed, fallback to file:', supabaseError.message);
-                added = addToFile(normalized.map((t) => ({
-                    date: t.date,
-                    category_name: t.categoryName,
-                    payee: t.payee,
-                    comment: t.comment,
-                    outcome_account_name: t.outcomeAccountName,
-                    outcome: t.outcome,
-                    outcome_currency: 'UAH',
-                    income_account_name: t.incomeAccountName,
-                    income: t.income,
-                    income_currency: 'UAH',
-                    created_date: t.createdDate,
-                    changed_date: null,
-                    raw_line: t.rawLine
-                })));
-                storage = 'file';
-            }
-        } else {
-            added = addToFile(normalized.map((t) => ({
-                date: t.date,
-                category_name: t.categoryName,
-                payee: t.payee,
-                comment: t.comment,
-                outcome_account_name: t.outcomeAccountName,
-                outcome: t.outcome,
-                outcome_currency: 'UAH',
-                income_account_name: t.incomeAccountName,
-                income: t.income,
-                income_currency: 'UAH',
-                created_date: t.createdDate,
-                changed_date: null,
-                raw_line: t.rawLine
-            })));
-        }
-
         return res.status(200).json({
             success: true,
             source: 'zenmoney',
-            added,
-            storage,
-            fetched: normalized.length,
-            message: `Синхронизировано из ZenMoney: ${added} записей`
+            fetchedRaw: transactions.length,
+            fetchedFiltered: normalized.length,
+            transactions: normalized,
+            message: `Получено из ZenMoney: ${normalized.length} транзакций`
         });
     } catch (error) {
         console.error('ZenMoney sync error:', error);
