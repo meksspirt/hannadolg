@@ -243,7 +243,7 @@ const App = () => {
     const stats = useMemo(() => {
         if (data.length === 0) return {
             currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
-            avgLoanAmount: 0, loansPerMonth: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
+            avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
             weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
             simulatorData: [], benchmarks: { monthlyChange: 0, intervalChange: 0 },
@@ -273,6 +273,13 @@ const App = () => {
             Math.max(1, Math.ceil((lastLoan.sortDate - firstLoan.sortDate) / (1000 * 60 * 60 * 24 * 30))) : 1;
         const loansPerMonth = loans.length / monthsDiff;
         const avgMonthlyGiven = totalGiven / monthsDiff;
+        const now = new Date();
+        const currentMonthGiven = loans
+            .filter((t) => (
+                t.sortDate.getFullYear() === now.getFullYear() &&
+                t.sortDate.getMonth() === now.getMonth()
+            ))
+            .reduce((sum, t) => sum + t.amount, 0);
 
         // Топ категорий (по комментариям)
         const categoryMap = {};
@@ -579,6 +586,7 @@ const App = () => {
             returnRate: totalGiven > 0 ? ((totalReceived / totalGiven) * 100).toFixed(1) : 0,
             avgLoanAmount,
             loansPerMonth: loansPerMonth.toFixed(1),
+            currentMonthGiven,
             avgMonthlyGiven,
             topCategories,
             monthlyStats,
@@ -902,12 +910,18 @@ const App = () => {
                     <span className="value">{stats.returnRate}<span className="value-symbol">%</span></span>
                 </div>
                 <div className="card stat-card info">
-                    <span className="label">Средний займ</span>
-                    <span className="value">{formatAmount(stats.avgLoanAmount)} <span className="value-symbol">₴</span></span>
+                    <span className="label">Примерное время возврата текущего долга</span>
+                    <span className="value">
+                        {stats.projectedPayoff ? (
+                            <>{stats.projectedPayoff} <span className="value-unit">мес.</span></>
+                        ) : (
+                            <>Нет данных</>
+                        )}
+                    </span>
                 </div>
                 <div className="card stat-card info">
-                    <span className="label">Займов в месяц</span>
-                    <span className="value">{stats.loansPerMonth}</span>
+                    <span className="label">Одолжила у меня за текущий месяц</span>
+                    <span className="value">{formatAmount(stats.currentMonthGiven)} <span className="value-symbol">₴</span></span>
                 </div>
                 <div className="card stat-card info">
                     <span className="label">В среднем в месяц</span>
