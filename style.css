@@ -1718,3 +1718,41 @@ td {
 .simulator-base-hint strong {
     color: var(--text);
 }
+
+/* ===== Period Tabs ===== */
+.period-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.period-tabs button {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.period-tabs button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.period-tabs button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+@media (max-width: 480px) {
+    .period-tabs button {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+    }
+}

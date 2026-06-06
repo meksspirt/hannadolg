@@ -24,6 +24,7 @@ const App = () => {
     };
 
     const [chartMode, setChartMode] = useState('debt'); // 'debt' or 'flow'
+    const [chartPeriod, setChartPeriod] = useState('all'); // '1d','1m','6m','ytd','1y','all'
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
     const [safetyLimit, setSafetyLimit] = useState(localStorage.getItem('safetyLimit') || 50000);
     const [payoffTargetDate, setPayoffTargetDate] = useState(() => localStorage.getItem('payoffTargetDate') || '');
@@ -658,6 +659,37 @@ const App = () => {
         return Object.values(dailyData).sort((a, b) => a.date - b.date);
     }, [data]);
 
+    const periodFilteredChartData = useMemo(() => {
+        if (formattedChartData.length === 0) return [];
+        if (chartPeriod === 'all') return formattedChartData;
+
+        const now = new Date();
+        let from;
+        if (chartPeriod === '1d') {
+            from = new Date(now); from.setDate(from.getDate() - 1);
+        } else if (chartPeriod === '1m') {
+            from = new Date(now); from.setMonth(from.getMonth() - 1);
+        } else if (chartPeriod === '6m') {
+            from = new Date(now); from.setMonth(from.getMonth() - 6);
+        } else if (chartPeriod === 'ytd') {
+            from = new Date(now.getFullYear(), 0, 1); // 1 января текущего года
+        } else if (chartPeriod === '1y') {
+            from = new Date(now); from.setFullYear(from.getFullYear() - 1);
+        }
+
+        const filtered = formattedChartData.filter(d => d.date >= from);
+        // Если точек нет — добавляем стартовую точку с долгом на момент начала периода
+        if (filtered.length === 0) return formattedChartData.slice(-1);
+
+        // Добавляем точку "на момент начала периода" — берём последнюю точку до from
+        const before = formattedChartData.filter(d => d.date < from);
+        if (before.length > 0) {
+            const startPoint = { ...before[before.length - 1], date: from };
+            return [startPoint, ...filtered];
+        }
+        return filtered;
+    }, [formattedChartData, chartPeriod]);
+
     return (
         <div className="container">
             <header className="main-header">
@@ -796,20 +828,36 @@ const App = () => {
                         <button className={chartMode === 'flow' ? 'active' : ''} onClick={() => setChartMode('flow')}>Поток</button>
                     </div>
                 </div>
+                <div className="period-tabs">
+                    {[
+                        { key: '1d',  label: 'День'    },
+                        { key: '1m',  label: 'Месяц'   },
+                        { key: '6m',  label: '6 мес'   },
+                        { key: 'ytd', label: 'С 1 янв' },
+                        { key: '1y',  label: 'Год'     },
+                        { key: 'all', label: 'Всё'     },
+                    ].map(p => (
+                        <button
+                            key={p.key}
+                            className={chartPeriod === p.key ? 'active' : ''}
+                            onClick={() => setChartPeriod(p.key)}
+                        >{p.label}</button>
+                    ))}
+                </div>
                 <div className="chart-box">
-                    {formattedChartData.length > 0 && (
+                    {periodFilteredChartData.length > 0 && (
                         <ParentSize>
                             {({ width, height }) => (
                                 <DebtChart
-                                    data={chartMode === 'debt' ? formattedChartData : stats.cumulativeData}
-                                    forecastData={chartMode === 'debt' ? stats.forecastData : []}
+                                    data={chartMode === 'debt' ? periodFilteredChartData : stats.cumulativeData}
+                                    forecastData={chartMode === 'debt' && chartPeriod === 'all' ? stats.forecastData : []}
                                     burndownData={chartMode === 'debt' ? stats.burndown : []}
                                     safetyLimit={chartMode === 'debt' ? safetyLimit : null}
                                     mode={chartMode}
                                     width={width}
                                     height={height}
                                     theme={theme}
-                                    simulatorData={stats.simulatorData}
+                                    simulatorData={chartMode === 'debt' && chartPeriod === 'all' ? stats.simulatorData : []}
                                 />
                             )}
                         </ParentSize>
