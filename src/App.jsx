@@ -746,6 +746,7 @@ const App = () => {
                 <div className="card stat-card info">
                     <span className="label">Одолжила у меня за текущий месяц</span>
                     <span className="value">{formatAmount(stats.currentMonthGiven)} <span className="value-symbol">₴</span></span>
+                    <span style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>только новые займы</span>
                 </div>
                 <div className="card stat-card info">
                     <span className="label">В среднем в месяц</span>
