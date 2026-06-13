@@ -236,7 +236,7 @@ const App = () => {
     const stats = useMemo(() => {
         if (data.length === 0) return {
             currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
-            avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
+            avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, lastWeekGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
             weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
             simulatorData: [], _monthlyReceivedRate: 0, _netMonthlyChange: 0, benchmarks: { monthlyChange: 0, intervalChange: 0 },
@@ -272,6 +272,11 @@ const App = () => {
                 t.sortDate.getFullYear() === now.getFullYear() &&
                 t.sortDate.getMonth() === now.getMonth()
             ))
+            .reduce((sum, t) => sum + t.amount, 0);
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const lastWeekGiven = loans
+            .filter(t => t.sortDate >= weekAgo)
             .reduce((sum, t) => sum + t.amount, 0);
 
         // Топ категорий (по комментариям)
@@ -587,6 +592,7 @@ const App = () => {
             avgLoanAmount,
             loansPerMonth: loansPerMonth.toFixed(1),
             currentMonthGiven,
+            lastWeekGiven,
             avgMonthlyGiven,
             topCategories,
             monthlyStats,
@@ -778,6 +784,11 @@ const App = () => {
                 <div className="card stat-card info">
                     <span className="label">Одолжила у меня за текущий месяц</span>
                     <span className="value">{formatAmount(stats.currentMonthGiven)} <span className="value-symbol">₴</span></span>
+                    <span style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>только новые займы</span>
+                </div>
+                <div className="card stat-card info">
+                    <span className="label">Одолжила за последние 7 дней</span>
+                    <span className="value">{formatAmount(stats.lastWeekGiven)} <span className="value-symbol">₴</span></span>
                     <span style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>только новые займы</span>
                 </div>
                 <div className="card stat-card info">
