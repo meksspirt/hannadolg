@@ -37,6 +37,7 @@ const App = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
+    const [monthlyPage, setMonthlyPage] = useState(1);
     const [exchangeRates, setExchangeRates] = useState({ usd: 41.5, eur: 44.8 });
     const [isOnline, setIsOnline] = useState(true);
     const itemsPerPage = 10;
@@ -385,7 +386,6 @@ const App = () => {
 
         const monthlyStats = Object.entries(monthlyMap)
             .sort(([a], [b]) => b.localeCompare(a))
-            .slice(0, 6)
             .map(([month, stats]) => ({
                 month,
                 ...stats,
@@ -1064,7 +1064,9 @@ const App = () => {
             <div className="card analytics-card">
                 <h3>Статистика по месяцам</h3>
                 <div className="monthly-stats">
-                    {stats.monthlyStats.map((month, i) => (
+                    {stats.monthlyStats
+                        .slice((monthlyPage - 1) * 4, monthlyPage * 4)
+                        .map((month, i) => (
                         <div key={i} className="month-item">
                             <div className="month-header">
                                 <span className="month-name">
@@ -1088,6 +1090,21 @@ const App = () => {
                         </div>
                     ))}
                 </div>
+                {stats.monthlyStats.length > 4 && (
+                    <div className="pagination">
+                        <button
+                            disabled={monthlyPage <= 1}
+                            onClick={() => setMonthlyPage(p => p - 1)}
+                        >← Пред.</button>
+                        <span className="page-info">
+                            {monthlyPage} / {Math.ceil(stats.monthlyStats.length / 4)}
+                        </span>
+                        <button
+                            disabled={monthlyPage >= Math.ceil(stats.monthlyStats.length / 4)}
+                            onClick={() => setMonthlyPage(p => p + 1)}
+                        >След. →</button>
+                    </div>
+                )}
             </div>
 
 

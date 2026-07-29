@@ -565,6 +565,12 @@ td {
     cursor: not-allowed;
 }
 
+.page-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
 .advice-section-wrap {
     position: relative;
     margin-bottom: 2rem;
