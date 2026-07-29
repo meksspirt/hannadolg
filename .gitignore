@@ -14,6 +14,9 @@ api/node_modules/
 *.log
 npm-debug.log*
 
+# Build output
+dist/
+
 # OS files
 .DS_Store
 Thumbs.db

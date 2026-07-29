@@ -9,11 +9,9 @@ import {
     Wifi,
     WifiOff
 } from 'lucide-react';
-import { loadFromLocalStorage, saveToLocalStorage, addToLocalStorage } from './localStorage-storage.js';
 import ParentSize from '@visx/responsive/lib/components/ParentSize';
 import DebtChart from './DebtChart';
 import FinancialAdvice from './FinancialAdvice';
-import { format } from 'date-fns';
 
 const App = () => {
     const formatAmount = (num) => {
@@ -51,7 +49,6 @@ const App = () => {
     }, [theme]);
 
     useEffect(() => {
-        // Очищаем старые локальные данные транзакций, чтобы использовать только серверные
         localStorage.removeItem('debt-sense-transactions');
         fetchData();
         fetchRates();
@@ -74,8 +71,6 @@ const App = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-
-            // Пытаемся загрузить с сервера
             const res = await fetch('/api/get-transactions');
             if (res.ok) {
                 const result = await res.json();
@@ -94,7 +89,7 @@ const App = () => {
         }
     };
 
-    const processTransactions = (raw, isDbData) => {
+    const processTransactions = (raw) => {
         const isHannaCounterparty = (transaction) => {
             const payee = (transaction.payee || '').toLowerCase();
             return payee.includes('ганна є');
@@ -111,9 +106,6 @@ const App = () => {
             const income = parseFloat(t.income ?? t.income_amount) || 0;
             const outcome = parseFloat(t.outcome ?? t.outcome_amount) || 0;
 
-            // Правильная логика: определяем тип по счетам
-            // Если деньги идут В "Долги" - это "Дано в долг"
-            // Если деньги идут ИЗ "Долги" - это "Возврат"
             let amount, type;
 
             const incomeAccount = (t.income_account_name || '').toLowerCase();
@@ -129,7 +121,6 @@ const App = () => {
                 amount = outcome;
                 type = 'Возврат';
             } else {
-                // Не учитываем транзакции, не связанные со счетом "Долги"
                 return null;
             }
 
@@ -260,10 +251,8 @@ const App = () => {
         const totalReceived = returns.reduce((sum, t) => sum + t.amount, 0);
         const currentDebt = totalGiven - totalReceived;
 
-        // Средний размер долга
         const avgLoanAmount = loans.length > 0 ? totalGiven / loans.length : 0;
 
-        // Частота займов (займов в месяц)
         const firstLoan = loans[loans.length - 1];
         const lastLoan = loans[0];
         const monthsDiff = firstLoan && lastLoan ?
@@ -283,7 +272,6 @@ const App = () => {
             .filter(t => t.sortDate >= weekAgo)
             .reduce((sum, t) => sum + t.amount, 0);
 
-        // Топ категорий (по комментариям)
         const categoryMap = {};
         const weekdayMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
         const loanSizeBuckets = {
@@ -302,11 +290,9 @@ const App = () => {
             else if (comment.includes('поповн') || comment.includes('пополн')) category = 'Пополнение счета';
             categoryMap[category] = (categoryMap[category] || 0) + t.amount;
 
-            // Дни недели
             const day = t.sortDate.getDay();
             weekdayMap[day] += t.amount;
 
-            // Размеры займов
             if (t.amount < 500) {
                 loanSizeBuckets.small.amount += t.amount;
                 loanSizeBuckets.small.count++;
@@ -318,7 +304,6 @@ const App = () => {
                 loanSizeBuckets.large.count++;
             }
 
-            // Дни месяца (для тепловой карты)
             const date = t.sortDate.getDate();
             daysOfMonthMap[date]++;
         });
@@ -328,7 +313,6 @@ const App = () => {
             .slice(0, 5)
             .map(([name, amount]) => ({ name, amount, percentage: ((amount / totalGiven) * 100).toFixed(1) }));
 
-        // Кумулятивные данные
         const sortedAll = [...data].sort((a, b) => a.sortDate - b.sortDate);
         let cumGiven = 0;
         let cumReceived = 0;
@@ -343,21 +327,18 @@ const App = () => {
             };
         });
 
-        // Прогноз на основе последних 60 дней — учитываем выдачу и возврат раздельно
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
         const recentLoans   = loans.filter(t => t.sortDate >= sixtyDaysAgo);
         const recentReturns = returns.filter(t => t.sortDate >= sixtyDaysAgo);
 
         let forecastData = [];
-        // Считаем суммы за период и переводим в месячный темп (60 дн → 30 дн)
         const recentGiven    = recentLoans.reduce((s, t) => s + t.amount, 0);
         const recentReceived = recentReturns.reduce((s, t) => s + t.amount, 0);
-        const monthlyGivenRate    = recentGiven    / 2; // за 60 дн → /2 = в месяц
+        const monthlyGivenRate    = recentGiven    / 2;
         const monthlyReceivedRate = recentReceived / 2;
         const netMonthlyChange    = monthlyGivenRate - monthlyReceivedRate;
 
-        // Строим прогноз только если есть хоть какая-то активность за 60 дней
         if (recentLoans.length > 0 || recentReturns.length > 0) {
             const currentDebtNow = data.length > 0 ? data[0].currentDebt : 0;
             for (let i = 1; i <= 6; i++) {
@@ -371,10 +352,9 @@ const App = () => {
             }
         }
 
-        // Месячная статистика
         const monthlyMap = {};
         data.forEach(t => {
-            const monthKey = t.sortDate.toISOString().slice(0, 7); // YYYY-MM
+            const monthKey = t.sortDate.toISOString().slice(0, 7);
             if (!monthlyMap[monthKey]) {
                 monthlyMap[monthKey] = { given: 0, received: 0, loans: 0, returns: 0 };
             }
@@ -395,7 +375,6 @@ const App = () => {
                 net: stats.given - stats.received
             }));
 
-        // Недельная статистика
         const weeklyMap = {};
         data.forEach(t => {
             const d = t.sortDate;
@@ -424,7 +403,6 @@ const App = () => {
                 net: stats.given - stats.received
             }));
 
-        // Тренд долга (последние 3 месяца)
         const recentMonths = monthlyStats.slice(0, 3);
         let debtTrend = 'stable';
         if (recentMonths.length >= 2) {
@@ -432,13 +410,11 @@ const App = () => {
             debtTrend = trend > 500 ? 'growing' : trend < -500 ? 'decreasing' : 'stable';
         }
 
-        // Прогноз погашения (на основе среднего возврата в месяц)
         const avgReturnPerMonth = returns.length > 0 ? totalReceived / monthsDiff : 0;
         const projectedPayoff = avgReturnPerMonth > 0
             ? Math.max(0, Math.ceil(currentDebt / avgReturnPerMonth))
             : null;
 
-        // Анализ интервалов
         let intervals = [];
         for (let i = 0; i < loans.length - 1; i++) {
             const diff = (loans[i].sortDate - loans[i + 1].sortDate) / (1000 * 60 * 60 * 24);
@@ -450,7 +426,6 @@ const App = () => {
         const intervalTrend = recentIntervals.length > 0 && prevIntervals.length > 0 ?
             (recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length < prevIntervals.reduce((a, b) => a + b, 0) / prevIntervals.length ? 'decreasing' : 'increasing') : 'stable';
 
-        // План погашения (Burndown)
         let burndown = [];
         if (payoffTargetDate) {
             const target = new Date(payoffTargetDate);
@@ -468,13 +443,8 @@ const App = () => {
             }
         }
 
-        // Предупреждение о лимите (пользовательский лимит)
         const isOverLimit = currentDebt > safetyLimit;
 
-        // Интерактивный симулятор (Что если?)
-        // Отвечает на вопрос: за сколько месяцев погасится ТЕКУЩИЙ долг,
-        // если она будет возвращать (средний возврат за 60 дн + доплата) в месяц.
-        // Новые займы не учитываются — это сценарий погашения, а не прогноз.
         let simulatorData = [];
         if (extraPayment > 0) {
             const totalMonthlyReturn = monthlyReceivedRate + extraPayment;
@@ -492,7 +462,6 @@ const App = () => {
             }
         }
 
-        // 2. Сравнение периодов (Бенчмарки)
         let benchmarks = {
             monthlyChange: 0,
             intervalChange: 0,
@@ -507,17 +476,13 @@ const App = () => {
             benchmarks.intervalChange = (currentAvg - prevAvg).toFixed(1);
         }
 
-        // 3. Детектор вредных привычек
         const badHabitsTotal = categoryMap['Вредные привычки'] || 0;
         const potentialSavings = badHabitsTotal * 0.5;
 
-        // 4. Геймификация (Достижения)
         const achievements = [];
         const daysSinceLastLoan = lastLoan ? (new Date() - lastLoan.sortDate) / (1000 * 60 * 60 * 24) : 999;
-
         if (daysSinceLastLoan >= 7) achievements.push({ id: 'discipline', icon: '🏆', title: 'Железная дисциплина', desc: '7+ дней без новых займов' });
 
-        // 5. Мини-планировщик (анализ обещаний в комментах)
         const plannedPayments = data.filter(t => t.comment.match(/\d{2}\.\d{2}/)).map(t => {
             const dateMatch = t.comment.match(/\d{2}\.\d{2}/);
             return {
@@ -529,13 +494,11 @@ const App = () => {
             };
         }).slice(0, 5);
 
-        // 6. Учет инфляции (Real Value)
         const monthlyInflation = inflationRate / 100 / 12;
         const realDebtValue = currentDebt / Math.pow(1 + monthlyInflation, monthsDiff);
         const inflationProfit = Math.max(0, currentDebt - realDebtValue);
         const inflationGainPercent = currentDebt > 0 ? ((inflationProfit / currentDebt) * 100).toFixed(1) : 0;
 
-        // 7. Температура стресса (0-100)
         const debtToIncomeRatio = monthlyIncome > 0 ? (currentDebt / monthlyIncome) : 0;
         let stressScore = Math.min(100, Math.ceil(
             (debtToIncomeRatio * 20) +
@@ -543,11 +506,9 @@ const App = () => {
             (isOverLimit ? 20 : 0)
         ));
 
-        // 8. Бюджет на радости
         const monthlyRest = Math.max(0, monthlyIncome - avgMonthlyGiven);
-        const joyBudget = (monthlyRest * 0.1) / 30; // 10% от остатка на радости в день
+        const joyBudget = (monthlyRest * 0.1) / 30;
 
-        // 9. Детектор аномалий (Черные дыры)
         const anomalies = [];
         const weekdayCounts = Object.values(weekdayMap);
         const avgWeekdayAmount = weekdayCounts.reduce((a, b) => a + b, 0) / 7;
@@ -558,32 +519,24 @@ const App = () => {
             }
         });
 
-        // 10. Мили (Milestones) — удалено, заменено на план погашения
-
-        // 11. Снежный ком vs Лавина
         const entities = {};
         loans.forEach(l => {
             const name = l.comment.split(' ')[0] || 'Unknown';
             if (!entities[name]) entities[name] = 0;
             entities[name] += l.amount;
         });
-        const snowball = Object.entries(entities).sort((a, b) => a[1] - b[1]); // Сначала мелкие
-        const avalanche = Object.entries(entities).sort((a, b) => b[1] - a[1]); // Сначала крупные
+        const snowball = Object.entries(entities).sort((a, b) => a[1] - b[1]);
+        const avalanche = Object.entries(entities).sort((a, b) => b[1] - a[1]);
 
-        // 12. Стаж долгов (Aging)
         const oldestLoan = loans.length > 0 ? loans[loans.length - 1] : null;
         const debtAgeDays = oldestLoan ? Math.floor((new Date() - oldestLoan.sortDate) / (1000 * 60 * 60 * 24)) : 0;
 
-        // 13. Финансовая свобода (Liberty)
         const recentRepayments = recentMonths.reduce((sum, m) => sum + m.received, 0) / (recentMonths.length || 1);
         const libertyPercentage = monthlyIncome > 0 ? (recentRepayments / monthlyIncome * 100).toFixed(1) : 0;
         const libertyValue = recentRepayments;
 
-        // 14. Упущенная выгода (Opportunity Cost)
-        // Считаем сколько бы заработали эти деньги под 15% годовых
         const opportunityCost = currentDebt * 0.15 * (monthsDiff / 12);
 
-        // 15. Рейтинг надежности (Trust Score)
         const debtorStats = {};
         data.forEach(t => {
             const name = t.comment.split(' ')[0] || 'Unknown';
@@ -598,14 +551,12 @@ const App = () => {
             .map(([name, s]) => {
                 const ratio = s.given > 0 ? (s.received / s.given) : 0;
                 const daysSinceLast = Math.floor((new Date() - s.lastActivity) / (1000 * 60 * 60 * 24));
-                // Простая формула: % возврата - штраф за простой
                 const score = Math.max(0, Math.round((ratio * 100) - (daysSinceLast / 10)));
                 return { name, score, ratio: (ratio * 100).toFixed(0), lastActivity: daysSinceLast };
             })
             .filter(d => d.name !== 'Unknown')
             .sort((a, b) => b.score - a.score);
 
-        // 16. Список "зависших" долгов (Stale Loans)
         const staleLoans = reliabilityRanking
             .filter(d => d.lastActivity > 60 && d.score < 100)
             .slice(0, 5);
@@ -642,7 +593,6 @@ const App = () => {
             stressScore,
             joyBudget,
             anomalies,
-
             strategies: { snowball: snowball.slice(0, 3), avalanche: avalanche.slice(0, 3) },
             intervals: { avg: avgInterval, trend: intervalTrend },
             burndown,
@@ -657,7 +607,6 @@ const App = () => {
                 usd: currentDebt / exchangeRates.usd,
                 eur: currentDebt / exchangeRates.eur,
                 rates: exchangeRates,
-                // Гипотетический убыток если курс вырос с 40.0 до текущего
                 hedgeGain: (currentDebt / 40.0) - (currentDebt / exchangeRates.usd)
             }
         };
@@ -674,7 +623,6 @@ const App = () => {
     }, [data, searchQuery, filter, selectedWeek]);
 
     const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
 
     const formattedChartData = useMemo(() => {
         if (data.length === 0) return [];
@@ -706,16 +654,14 @@ const App = () => {
         } else if (chartPeriod === '6m') {
             from = new Date(now); from.setMonth(from.getMonth() - 6);
         } else if (chartPeriod === 'ytd') {
-            from = new Date(now.getFullYear(), 0, 1); // 1 января текущего года
+            from = new Date(now.getFullYear(), 0, 1);
         } else if (chartPeriod === '1y') {
             from = new Date(now); from.setFullYear(from.getFullYear() - 1);
         }
 
         const filtered = formattedChartData.filter(d => d.date >= from);
-        // Если точек нет — добавляем стартовую точку с долгом на момент начала периода
         if (filtered.length === 0) return formattedChartData.slice(-1);
 
-        // Добавляем точку "на момент начала периода" — берём последнюю точку до from
         const before = formattedChartData.filter(d => d.date < from);
         if (before.length > 0) {
             const startPoint = { ...before[before.length - 1], date: from };
@@ -725,19 +671,22 @@ const App = () => {
     }, [formattedChartData, chartPeriod]);
 
     return (
-        <div className="container">
-            <header className="main-header">
+        <div className="max-w-5xl mx-auto px-4 py-8">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
-                    <h1>Анализатор долгов</h1>
-                    <p className="subtitle">
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Анализатор долгов</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-3 mt-1">
                         Учет транзакций Ганны Є.
-                        <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${isOnline ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
                             {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
                             {isOnline ? 'Онлайн' : 'Локально'}
                         </span>
                     </p>
                 </div>
-                <button className="theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+                <button
+                    className="p-2.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors shadow-2xs"
+                    onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+                >
                     {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
             </header>
@@ -746,13 +695,13 @@ const App = () => {
 
             {/* Achievements Section */}
             {stats.achievements.length > 0 && (
-                <div className="achievements-bar">
+                <div className="flex flex-wrap gap-2.5 mb-6">
                     {stats.achievements.map(ach => (
-                        <div key={ach.id} className="achievement-chip" title={ach.desc}>
-                            <span className="ach-icon">{ach.icon}</span>
-                            <div className="ach-info">
-                                <span className="ach-title">{ach.title}</span>
-                                <span className="ach-desc">{ach.desc}</span>
+                        <div key={ach.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-xs shadow-2xs" title={ach.desc}>
+                            <span className="text-base">{ach.icon}</span>
+                            <div className="flex flex-col">
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">{ach.title}</span>
+                                <span className="text-slate-500 dark:text-slate-400 text-[11px]">{ach.desc}</span>
                             </div>
                         </div>
                     ))}
@@ -760,7 +709,7 @@ const App = () => {
             )}
 
             {/* План погашения до 31.12.2026 */}
-            <div className="card milestones-card">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-6 mb-6 shadow-xs">
                 {(() => {
                     const target = new Date(2026, 11, 31);
                     const now = new Date();
@@ -769,46 +718,46 @@ const App = () => {
                     const repayPct = stats.totalGiven > 0 ? Math.min(100, (stats.totalReceived / stats.totalGiven) * 100) : 0;
                     return (
                         <>
-                            <div className="repayment-header">
-                                <h3>Погашение до 31.12.2026 🎯</h3>
-                                <span className="repayment-badge">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Погашение до 31.12.2026 🎯</h3>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                                     {monthsLeft} мес. осталось
                                 </span>
                             </div>
-                            <div className="repayment-hero">
-                                <div className="repayment-hero-label">Ежемесячный платёж</div>
-                                <div className="repayment-hero-amount">
-                                    {formatAmount(monthlyPayment)} <span className="value-symbol">₴</span>
+                            <div className="text-center p-4 my-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700/50">
+                                <div className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Ежемесячный платёж</div>
+                                <div className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 flex items-baseline justify-center gap-1">
+                                    {formatAmount(monthlyPayment)} <span className="text-lg font-semibold opacity-80">₴</span>
                                 </div>
-                                <div className="repayment-hero-sub">
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                     {formatAmount(stats.currentDebt)} ₴ · {monthsLeft} платежей
                                 </div>
                             </div>
-                            <div className="repayment-progress">
-                                <div className="repayment-progress-bar">
-                                    <div className="repayment-progress-fill" style={{ width: `${repayPct}%` }} />
+                            <div className="my-4">
+                                <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${repayPct}%` }} />
                                 </div>
-                                <div className="repayment-progress-labels">
+                                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium">
                                     <span>Выдано: {formatAmount(stats.totalGiven)} ₴</span>
                                     <span>Возвращено: {repayPct.toFixed(0)}%</span>
                                     <span>Цель: 100%</span>
                                 </div>
                             </div>
-                            <div className="repayment-details">
-                                <div className="repayment-item">
-                                    <span className="repayment-item-icon">📅</span>
-                                    <span className="repayment-label">Осталось месяцев</span>
-                                    <span className="repayment-value">{monthsLeft}</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+                                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/30 text-xs">
+                                    <span className="text-base">📅</span>
+                                    <span className="text-slate-500 dark:text-slate-400 flex-1">Осталось месяцев</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{monthsLeft}</span>
                                 </div>
-                                <div className="repayment-item">
-                                    <span className="repayment-item-icon">💰</span>
-                                    <span className="repayment-label">Текущий долг</span>
-                                    <span className="repayment-value">{formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span></span>
+                                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/30 text-xs">
+                                    <span className="text-base">💰</span>
+                                    <span className="text-slate-500 dark:text-slate-400 flex-1">Текущий долг</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{formatAmount(stats.currentDebt)} <span className="font-medium opacity-80">₴</span></span>
                                 </div>
-                                <div className="repayment-item">
-                                    <span className="repayment-item-icon">📊</span>
-                                    <span className="repayment-label">Всего к выплате</span>
-                                    <span className="repayment-value">{formatAmount(monthlyPayment * monthsLeft)} <span className="value-symbol">₴</span></span>
+                                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/30 text-xs">
+                                    <span className="text-base">📊</span>
+                                    <span className="text-slate-500 dark:text-slate-400 flex-1">Всего к выплате</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{formatAmount(monthlyPayment * monthsLeft)} <span className="font-medium opacity-80">₴</span></span>
                                 </div>
                             </div>
                         </>
@@ -816,72 +765,72 @@ const App = () => {
                 })()}
             </div>
 
-            <div className="stats-grid">
-                <div className={`card stat-card ${stats.isOverLimit ? 'danger blink' : 'danger'}`}>
-                    <span className="label">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                <div className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between ${stats.isOverLimit ? 'animate-blink border-red-500' : ''}`}>
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
                         Долг Ганны 📈
-                        {stats.isOverLimit && <span className="warning-icon">⚠️</span>}
+                        {stats.isOverLimit && <span className="ml-1.5 text-sm">⚠️</span>}
                     </span>
-                    <span className="value">
-                        {formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span>
+                    <span className="text-2xl font-bold text-red-500 flex items-baseline gap-1.5 flex-wrap">
+                        {formatAmount(stats.currentDebt)} <span className="text-base font-medium opacity-80">₴</span>
                     </span>
                     {stats.benchmarks.monthlyChange !== 0 && (
-                        <span className={`stat-delta ${stats.benchmarks.monthlyChange > 0 ? 'up' : 'down'}`}>
+                        <span className={`text-xs font-semibold mt-1 inline-block ${stats.benchmarks.monthlyChange > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                             {stats.benchmarks.monthlyChange > 0 ? '+' : ''}{stats.benchmarks.monthlyChange}% к прошлому мес.
                         </span>
                     )}
                 </div>
-                <div className="card stat-card warning">
-                    <span className="label">Дано всего</span>
-                    <span className="value">{formatAmount(stats.totalGiven)} <span className="value-symbol">₴</span></span>
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Дано всего</span>
+                    <span className="text-2xl font-bold text-amber-500 flex items-baseline gap-1.5 flex-wrap">{formatAmount(stats.totalGiven)} <span className="text-base font-medium opacity-80">₴</span></span>
                 </div>
-                <div className="card stat-card success">
-                    <span className="label">Вернула всего</span>
-                    <span className="value">{formatAmount(stats.totalReceived)} <span className="value-symbol">₴</span></span>
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Вернула всего</span>
+                    <span className="text-2xl font-bold text-emerald-500 flex items-baseline gap-1.5 flex-wrap">{formatAmount(stats.totalReceived)} <span className="text-base font-medium opacity-80">₴</span></span>
                 </div>
-                <div className="card stat-card">
-                    <span className="label">Процент возврата</span>
-                    <span className="value">{stats.returnRate}<span className="value-symbol">%</span></span>
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Процент возврата</span>
+                    <span className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-baseline gap-1.5 flex-wrap">{stats.returnRate}<span className="text-base font-medium opacity-80">%</span></span>
                 </div>
-                <div className="card stat-card info">
-                    <span className="label">Примерное время возврата текущего долга</span>
-                    <span className="value">
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Примерное время возврата текущего долга</span>
+                    <span className="text-2xl font-bold text-blue-500 flex items-baseline gap-1.5 flex-wrap">
                         {stats.projectedPayoff !== null ? (
-                            <>{stats.projectedPayoff} <span className="value-unit">мес.</span></>
+                            <>{stats.projectedPayoff} <span className="text-sm font-medium text-slate-500 dark:text-slate-400">мес.</span></>
                         ) : (
                             <>Нет данных</>
                         )}
                     </span>
                 </div>
-                <div className="card stat-card info">
-                    <span className="label">Одолжила у меня за текущий месяц</span>
-                    <span className="value">{formatAmount(stats.currentMonthGiven)} <span className="value-symbol">₴</span></span>
-                    <span style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>только новые займы</span>
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Одолжила у меня за текущий месяц</span>
+                    <span className="text-2xl font-bold text-blue-500 flex items-baseline gap-1.5 flex-wrap">{formatAmount(stats.currentMonthGiven)} <span className="text-base font-medium opacity-80">₴</span></span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">только новые займы</span>
                 </div>
-                <div className="card stat-card info">
-                    <span className="label">Одолжила за последние 7 дней</span>
-                    <span className="value">{formatAmount(stats.lastWeekGiven)} <span className="value-symbol">₴</span></span>
-                    <span style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>только новые займы</span>
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Одолжила за последние 7 дней</span>
+                    <span className="text-2xl font-bold text-blue-500 flex items-baseline gap-1.5 flex-wrap">{formatAmount(stats.lastWeekGiven)} <span className="text-base font-medium opacity-80">₴</span></span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">только новые займы</span>
                 </div>
-                <div className="card stat-card info">
-                    <span className="label">В среднем в месяц</span>
-                    <span className="value">{formatAmount(stats.avgMonthlyGiven)} <span className="value-symbol">₴</span></span>
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">В среднем в месяц</span>
+                    <span className="text-2xl font-bold text-blue-500 flex items-baseline gap-1.5 flex-wrap">{formatAmount(stats.avgMonthlyGiven)} <span className="text-base font-medium opacity-80">₴</span></span>
                 </div>
-                <div className={`card stat-card ${stats.debtTrend === 'growing' ? 'danger' : stats.debtTrend === 'decreasing' ? 'success' : 'info'}`}>
-                    <span className="label">Тренд</span>
-                    <span className="value">
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between">
+                    <span className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Тренд</span>
+                    <span className={`text-2xl font-bold flex items-baseline gap-1.5 flex-wrap ${stats.debtTrend === 'growing' ? 'text-red-500' : stats.debtTrend === 'decreasing' ? 'text-emerald-500' : 'text-blue-500'}`}>
                         {stats.debtTrend === 'growing' ? (
-                            <><span className="value-symbol">📈</span> Растет</>
+                            <><span className="text-base font-medium">📈</span> Растет</>
                         ) : stats.debtTrend === 'decreasing' ? (
-                            <><span className="value-symbol">📉</span> Снижается</>
+                            <><span className="text-base font-medium">📉</span> Снижается</>
                         ) : (
-                            <><span className="value-symbol">➡️</span> Стабильно</>
+                            <><span className="text-base font-medium">➡️</span> Стабильно</>
                         )}
                     </span>
                 </div>
             </div>
 
-            <div className="card upload-card">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-6 mb-6 shadow-xs">
                 <input
                     type="file"
                     id="file"
@@ -889,13 +838,13 @@ const App = () => {
                     style={{ display: 'none' }}
                     accept=".csv"
                 />
-                <div className="upload-actions">
-                    <label htmlFor="file" className="upload-btn">
+                <div className="flex flex-wrap items-center gap-3">
+                    <label htmlFor="file" className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm cursor-pointer transition-colors shadow-2xs">
                         <Upload size={20} />
                         {uploading ? 'Загрузка...' : 'Выбрать CSV таблицу'}
                     </label>
                     {!isOnline && (
-                        <button className="retry-btn" onClick={fetchData} disabled={loading}>
+                        <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-medium text-sm cursor-pointer transition-colors" onClick={fetchData} disabled={loading}>
                             <Wifi size={16} />
                             {loading ? 'Подключение...' : 'Попробовать снова'}
                         </button>
@@ -903,15 +852,15 @@ const App = () => {
                 </div>
             </div>
 
-            <div className="card chart-card">
-                <div className="card-header-actions">
-                    <h3>{chartMode === 'debt' ? 'Динамика долга и прогноз' : 'Накопительные потоки (Flow)'}</h3>
-                    <div className="header-tabs">
-                        <button className={chartMode === 'debt' ? 'active' : ''} onClick={() => setChartMode('debt')}>Тренд</button>
-                        <button className={chartMode === 'flow' ? 'active' : ''} onClick={() => setChartMode('flow')}>Поток</button>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-6 mb-6 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{chartMode === 'debt' ? 'Динамика долга и прогноз' : 'Накопительные потоки (Flow)'}</h3>
+                    <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-900/60 rounded-lg border border-slate-200 dark:border-slate-700/80 self-start sm:self-auto">
+                        <button className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${chartMode === 'debt' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`} onClick={() => setChartMode('debt')}>Тренд</button>
+                        <button className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${chartMode === 'flow' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`} onClick={() => setChartMode('flow')}>Поток</button>
                     </div>
                 </div>
-                <div className="period-tabs">
+                <div className="flex flex-wrap gap-1.5 mb-4">
                     {[
                         { key: '1d',  label: 'День'    },
                         { key: '1m',  label: 'Месяц'   },
@@ -922,12 +871,12 @@ const App = () => {
                     ].map(p => (
                         <button
                             key={p.key}
-                            className={chartPeriod === p.key ? 'active' : ''}
+                            className={`px-3 py-1 text-xs font-medium rounded-lg border cursor-pointer transition-colors ${chartPeriod === p.key ? 'bg-blue-600 border-blue-600 text-white font-semibold' : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
                             onClick={() => setChartPeriod(p.key)}
                         >{p.label}</button>
                     ))}
                 </div>
-                <div className="chart-box">
+                <div className="w-full h-80 my-4">
                     {periodFilteredChartData.length > 0 && (
                         <ParentSize>
                             {({ width, height }) => (
@@ -946,53 +895,53 @@ const App = () => {
                         </ParentSize>
                     )}
                 </div>
-                <div className="chart-footer">
+                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
                     {/* Легенда */}
                     {chartMode === 'debt' && (
-                        <div className="chart-legend">
-                            <span className="legend-item">
-                                <span className="legend-line solid blue"></span> Долг
+                        <div className="flex flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400 py-3 border-b border-slate-100 dark:border-slate-700/50 mb-4">
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="w-4 h-0.5 bg-blue-500 inline-block"></span> Долг
                             </span>
-                            <span className="legend-item">
-                                <span className="legend-line dashed blue"></span> Прогноз (выдача − возврат, 60 дн)
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="w-4 h-0.5 border-t-2 border-dashed border-blue-500 inline-block"></span> Прогноз (выдача − возврат, 60 дн)
                             </span>
                             {stats.burndown.length > 0 && (
-                                <span className="legend-item">
-                                    <span className="legend-line dashed orange"></span> Цель погашения
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="w-4 h-0.5 border-t-2 border-dashed border-amber-500 inline-block"></span> Цель погашения
                                 </span>
                             )}
                             {extraPayment > 0 && (
-                                <span className="legend-item">
-                                    <span className="legend-line dashed green"></span> Ускоренный план
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="w-4 h-0.5 border-t-2 border-dashed border-emerald-500 inline-block"></span> Ускоренный план
                                 </span>
                             )}
-                            <span className="legend-item">
-                                <span className="legend-line dashed red"></span> Лимит
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="w-4 h-0.5 border-t-2 border-dashed border-red-500 inline-block"></span> Лимит
                             </span>
                         </div>
                     )}
 
                     {/* Настройки */}
-                    <div className="chart-settings">
-                        <div className="settings-group">
-                            <span className="settings-group-label">Параметры</span>
-                            <div className="setting-item">
-                                <label title="Порог долга — при превышении карточка мигает">⚠️ Лимит долга, ₴</label>
-                                <input type="number" value={safetyLimit} min="0" step="1000" onChange={(e) => {
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/50">
+                        <div className="flex flex-col gap-3">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Параметры</span>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-medium text-slate-700 dark:text-slate-300" title="Порог долга — при превышении карточка мигает">⚠️ Лимит долга, ₴</label>
+                                <input className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500" type="number" value={safetyLimit} min="0" step="1000" onChange={(e) => {
                                     setSafetyLimit(Number(e.target.value));
                                     localStorage.setItem('safetyLimit', e.target.value);
                                 }} />
                             </div>
-                            <div className="setting-item">
-                                <label title="Используется для расчёта стресса и бюджета на радости">💰 Месячный доход, ₴</label>
-                                <input type="number" value={monthlyIncome} min="0" step="1000" onChange={(e) => {
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-medium text-slate-700 dark:text-slate-300" title="Используется для расчёта стресса и бюджета на радости">💰 Месячный доход, ₴</label>
+                                <input className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500" type="number" value={monthlyIncome} min="0" step="1000" onChange={(e) => {
                                     setMonthlyIncome(Number(e.target.value));
                                     localStorage.setItem('monthlyIncome', e.target.value);
                                 }} />
                             </div>
-                            <div className="setting-item">
-                                <label title="Годовая инфляция для расчёта реальной стоимости долга">📈 Инфляция, % год.</label>
-                                <input type="number" value={inflationRate} min="0" max="100" step="1" onChange={(e) => {
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-medium text-slate-700 dark:text-slate-300" title="Годовая инфляция для расчёта реальной стоимости долга">📈 Инфляция, % год.</label>
+                                <input className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500" type="number" value={inflationRate} min="0" max="100" step="1" onChange={(e) => {
                                     setInflationRate(Number(e.target.value));
                                     localStorage.setItem('inflationRate', e.target.value);
                                 }} />
@@ -1000,11 +949,12 @@ const App = () => {
                         </div>
 
                         {chartMode === 'debt' && (
-                            <div className="settings-group">
-                                <span className="settings-group-label">Цель погашения</span>
-                                <div className="setting-item">
-                                    <label title="Оранжевый пунктир — план погашения к этой дате">🎯 Дата цели</label>
+                            <div className="flex flex-col gap-3">
+                                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Цель погашения</span>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300" title="Оранжевый пунктир — план погашения к этой дате">🎯 Дата цели</label>
                                     <input
+                                        className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                                         type="date"
                                         value={payoffTargetDate}
                                         min={new Date().toISOString().slice(0, 10)}
@@ -1022,14 +972,14 @@ const App = () => {
                                         ? formatAmount(stats.currentDebt / (daysLeft / 30))
                                         : '—';
                                     return (
-                                        <div className="burndown-info">
+                                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 flex flex-col gap-1">
                                             <span>⏳ {daysLeft} дн. ({monthsLeft} мес.)</span>
                                             <span>Нужно возвращать: <strong>{requiredMonthly} ₴/мес</strong></span>
                                         </div>
                                     );
                                 })()}
                                 {payoffTargetDate && (
-                                    <button className="clear-date-btn" onClick={() => {
+                                    <button className="self-start text-xs text-red-500 hover:text-red-600 font-medium cursor-pointer transition-colors" onClick={() => {
                                         setPayoffTargetDate('');
                                         localStorage.removeItem('payoffTargetDate');
                                     }}>✕ Сбросить дату</button>
@@ -1040,14 +990,15 @@ const App = () => {
 
                     {/* Симулятор */}
                     {chartMode === 'debt' && (
-                        <div className="simulator-control">
-                            <div className="simulator-header">
+                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/50">
+                            <div className="flex justify-between items-center mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                                 <label>🚀 Симулятор доплаты</label>
-                                <span className="simulator-value">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                                     {extraPayment > 0 ? `+${formatAmount(extraPayment)} ₴/мес` : 'выкл.'}
                                 </span>
                             </div>
                             <input
+                                className="w-full accent-blue-600 cursor-pointer"
                                 type="range"
                                 min="0"
                                 max="10000"
@@ -1055,18 +1006,17 @@ const App = () => {
                                 value={extraPayment}
                                 onChange={(e) => setExtraPayment(Number(e.target.value))}
                             />
-                            <div className="simulator-ticks">
+                            <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                                 <span>0</span><span>2 500</span><span>5 000</span><span>7 500</span><span>10 000</span>
                             </div>
-                            <div className="simulator-base-hint">
+                            <div className="text-xs text-slate-600 dark:text-slate-400 mt-2">
                                 База возврата (60 дн): <strong>{formatAmount(stats._monthlyReceivedRate || 0)} ₴/мес</strong>
-                                {extraPayment > 0 && <> → итого: <strong style={{color:'#10b981'}}>{formatAmount((stats._monthlyReceivedRate || 0) + extraPayment)} ₴/мес</strong></>}
+                                {extraPayment > 0 && <> → итого: <strong className="text-emerald-500">{formatAmount((stats._monthlyReceivedRate || 0) + extraPayment)} ₴/мес</strong></>}
                             </div>
                             {extraPayment > 0 && stats.simulatorData.length > 0 && (() => {
                                 const lastPoint = stats.simulatorData[stats.simulatorData.length - 1];
                                 const monthsToZero = stats.simulatorData.findIndex(d => d.debt <= 0);
                                 const simMonths = stats.simulatorData.length - 1;
-                                // Сколько месяцев без доплаты (только базовый возврат)
                                 const baseReturn = stats._monthlyReceivedRate || 0;
                                 const monthsWithoutExtra = baseReturn > 0
                                     ? Math.ceil(stats.currentDebt / baseReturn)
@@ -1075,13 +1025,13 @@ const App = () => {
                                     ? monthsWithoutExtra - monthsToZero
                                     : null;
                                 return (
-                                    <div className="simulator-result">
+                                    <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-300">
                                         {monthsToZero > 0
                                             ? <span>✅ Долг обнулится через <strong>{monthsToZero} мес.</strong></span>
                                             : <span>📉 Через {simMonths} мес. остаток: <strong>{formatAmount(lastPoint.debt)} ₴</strong></span>
                                         }
                                         {monthsSaved > 0 && (
-                                            <span style={{display:'block', marginTop:'4px', color:'#10b981'}}>
+                                            <span className="block mt-1 text-emerald-600 dark:text-emerald-400">
                                                 💡 Быстрее на <strong>{monthsSaved} мес.</strong> vs без доплаты
                                             </span>
                                         )}
@@ -1093,60 +1043,55 @@ const App = () => {
                 </div>
             </div>
 
-
             {/* Статистика по месяцам / неделям */}
-            <div className="card analytics-card">
-                <div className="stats-view-header">
-                    <h3>Статистика по {statsView === 'month' ? 'месяцам' : 'неделям'}</h3>
-                    <div className="stats-view-tabs">
-                        <button className={statsView === 'month' ? 'active' : ''} onClick={() => setStatsView('month')}>Месяцы</button>
-                        <button className={statsView === 'week' ? 'active' : ''} onClick={() => setStatsView('week')}>Недели</button>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-6 mb-6 shadow-xs">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Статистика по {statsView === 'month' ? 'месяцам' : 'неделям'}</h3>
+                    <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-900/60 rounded-lg border border-slate-200 dark:border-slate-700/80">
+                        <button className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${statsView === 'month' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`} onClick={() => setStatsView('month')}>Месяцы</button>
+                        <button className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${statsView === 'week' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`} onClick={() => setStatsView('week')}>Недели</button>
                     </div>
                 </div>
                 {statsView === 'month' ? (
                     <>
-                        <div className="monthly-stats">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {stats.monthlyStats
                                 .slice((monthlyPage - 1) * 4, monthlyPage * 4)
                                 .map((month, i) => (
-                                <div key={i} className="month-item">
-                                    <div className="month-header">
-                                        <span className="month-name">
+                                <div key={i} className="p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
                                             {new Date(month.month + '-01').toLocaleDateString('ru', {
                                                 year: 'numeric',
                                                 month: 'long'
                                             })}
                                         </span>
-                                        <span className={`month-net ${month.net > 0 ? 'negative' : 'positive'}`}>
+                                        <span className={`text-xs font-bold ${month.net > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                                             {month.net > 0 ? '+' : ''}{formatAmount(month.net)} ₴
                                         </span>
                                     </div>
-                                    <div className="month-details">
-                                        <div className="month-stat">
-                                            <span>Дано: {formatAmount(month.given)} ₴ ({month.loans} раз)</span>
-                                        </div>
-                                        <div className="month-stat">
-                                            <span>Вернула: {formatAmount(month.received)} ₴ ({month.returns} раз)</span>
-                                        </div>
+                                    <div className="text-xs text-slate-600 dark:text-slate-400 flex flex-col gap-1">
+                                        <div>Дано: {formatAmount(month.given)} ₴ ({month.loans} раз)</div>
+                                        <div>Вернула: {formatAmount(month.received)} ₴ ({month.returns} раз)</div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                         {stats.monthlyStats.length > 4 && (
-                            <div className="pagination">
-                                <button disabled={monthlyPage <= 1} onClick={() => setMonthlyPage(p => p - 1)}>← Пред.</button>
-                                <span className="page-info">{monthlyPage} / {Math.ceil(stats.monthlyStats.length / 4)}</span>
-                                <button disabled={monthlyPage >= Math.ceil(stats.monthlyStats.length / 4)} onClick={() => setMonthlyPage(p => p + 1)}>След. →</button>
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 text-xs">
+                                <button className="px-3 py-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer" disabled={monthlyPage <= 1} onClick={() => setMonthlyPage(p => p - 1)}>← Пред.</button>
+                                <span className="text-slate-500 dark:text-slate-400 font-medium">{monthlyPage} / {Math.ceil(stats.monthlyStats.length / 4)}</span>
+                                <button className="px-3 py-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer" disabled={monthlyPage >= Math.ceil(stats.monthlyStats.length / 4)} onClick={() => setMonthlyPage(p => p + 1)}>След. →</button>
                             </div>
                         )}
                     </>
                 ) : (
                     <>
-                        <div className="monthly-stats">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {stats.weeklyStats
                                 .slice((weeklyPage - 1) * 4, weeklyPage * 4)
                                 .map((week, i) => (
-                                <div key={i} className={`month-item week-item ${selectedWeek?.week === week.week ? 'active' : ''}`} onClick={() => {
+                                <div key={i} className={`p-4 rounded-xl border transition-all cursor-pointer ${selectedWeek?.week === week.week ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-950/20 ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30'}`} onClick={() => {
                                     const monday = new Date(week.week + 'T00:00:00');
                                     const sunday = new Date(monday);
                                     sunday.setDate(sunday.getDate() + 6);
@@ -1154,8 +1099,8 @@ const App = () => {
                                     setSelectedWeek(selectedWeek?.week === week.week ? null : { week: week.week, start: monday, end: sunday, label: `${monday.toLocaleDateString('ru', { day: 'numeric', month: 'long' })} — ${sunday.toLocaleDateString('ru', { day: 'numeric', month: 'long' })}` });
                                     setCurrentPage(1);
                                 }}>
-                                    <div className="month-header">
-                                        <span className="month-name">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
                                             {new Date(week.week + 'T00:00:00').toLocaleDateString('ru', {
                                                 day: 'numeric',
                                                 month: 'long'
@@ -1164,89 +1109,85 @@ const App = () => {
                                                 month: 'long'
                                             })}
                                         </span>
-                                        <span className={`month-net ${week.net > 0 ? 'negative' : 'positive'}`}>
+                                        <span className={`text-xs font-bold ${week.net > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                                             {week.net > 0 ? '+' : ''}{formatAmount(week.net)} ₴
                                         </span>
                                     </div>
-                                    <div className="month-details">
-                                        <div className="month-stat">
-                                            <span>Дано: {formatAmount(week.given)} ₴ ({week.loans} раз)</span>
-                                        </div>
-                                        <div className="month-stat">
-                                            <span>Вернула: {formatAmount(week.received)} ₴ ({week.returns} раз)</span>
-                                        </div>
+                                    <div className="text-xs text-slate-600 dark:text-slate-400 flex flex-col gap-1">
+                                        <div>Дано: {formatAmount(week.given)} ₴ ({week.loans} раз)</div>
+                                        <div>Вернула: {formatAmount(week.received)} ₴ ({week.returns} раз)</div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                         {stats.weeklyStats.length > 4 && (
-                            <div className="pagination">
-                                <button disabled={weeklyPage <= 1} onClick={() => setWeeklyPage(p => p - 1)}>← Пред.</button>
-                                <span className="page-info">{weeklyPage} / {Math.ceil(stats.weeklyStats.length / 4)}</span>
-                                <button disabled={weeklyPage >= Math.ceil(stats.weeklyStats.length / 4)} onClick={() => setWeeklyPage(p => p + 1)}>След. →</button>
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 text-xs">
+                                <button className="px-3 py-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer" disabled={weeklyPage <= 1} onClick={() => setWeeklyPage(p => p - 1)}>← Пред.</button>
+                                <span className="text-slate-500 dark:text-slate-400 font-medium">{weeklyPage} / {Math.ceil(stats.weeklyStats.length / 4)}</span>
+                                <button className="px-3 py-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer" disabled={weeklyPage >= Math.ceil(stats.weeklyStats.length / 4)} onClick={() => setWeeklyPage(p => p + 1)}>След. →</button>
                             </div>
                         )}
                     </>
                 )}
             </div>
 
-
-            <div className="card list-card">
-                <div className="list-header">
-                    <div className="search-wrap">
-                        <Search size={18} className="search-icon" />
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl p-6 mb-6 shadow-xs">
+                <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center mb-4">
+                    <div className="relative flex-1 w-full sm:max-w-md">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
+                            className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                             placeholder="Поиск по комментариям или имени..."
                             value={searchQuery}
                             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                         />
                     </div>
-                    <div className="filter-tabs">
-                        <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>Все</button>
-                        <button className={filter === 'given' ? 'active' : ''} onClick={() => setFilter('given')}>Выдано</button>
-                        <button className={filter === 'received' ? 'active' : ''} onClick={() => setFilter('received')}>Возвраты</button>
+                    <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-900/60 rounded-lg border border-slate-200 dark:border-slate-700/80">
+                        <button className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${filter === 'all' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`} onClick={() => setFilter('all')}>Все</button>
+                        <button className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${filter === 'given' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`} onClick={() => setFilter('given')}>Выдано</button>
+                        <button className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${filter === 'received' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'}`} onClick={() => setFilter('received')}>Возвраты</button>
                     </div>
                 </div>
 
-                <div className="table-wrap">
-                    <table>
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm text-left">
                         <thead>
                             <tr>
-                                <th>Дата</th>
-                                <th>Комментарий</th>
-                                <th>Тип</th>
-                                <th>Сумма</th>
-                                <th>Остаток</th>
+                                <th className="px-4 py-3 bg-slate-50 dark:bg-slate-900/60 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">Дата</th>
+                                <th className="px-4 py-3 bg-slate-50 dark:bg-slate-900/60 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">Комментарий</th>
+                                <th className="px-4 py-3 bg-slate-50 dark:bg-slate-900/60 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">Тип</th>
+                                <th className="px-4 py-3 bg-slate-50 dark:bg-slate-900/60 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">Сумма</th>
+                                <th className="px-4 py-3 bg-slate-50 dark:bg-slate-900/60 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">Остаток</th>
                             </tr>
                         </thead>
                         <tbody>
                             {paginatedData.map((t, i) => (
-                                <tr key={i}>
-                                    <td>{t.formattedDate}</td>
-                                    <td>{t.comment}</td>
-                                    <td>
-                                        <span className={`type-badge ${t.type === 'Возврат' ? 'in' : 'out'}`}>
+                                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
+                                    <td className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 text-slate-800 dark:text-slate-200 whitespace-nowrap">{t.formattedDate}</td>
+                                    <td className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 text-slate-800 dark:text-slate-200">{t.comment}</td>
+                                    <td className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${t.type === 'Возврат' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
                                             {t.type === 'Возврат' ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
                                             {t.type}
                                         </span>
                                     </td>
-                                    <td>{formatAmount(t.amount)}</td>
-                                    <td className="debt-cell">{formatAmount(t.currentDebt)}</td>
+                                    <td className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">{formatAmount(t.amount)}</td>
+                                    <td className="px-4 py-3 border-b border-slate-100 dark:border-slate-700/50 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{formatAmount(t.currentDebt)}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
 
-                <div className="pagination">
-                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Назад</button>
-                    <span>{currentPage} / {Math.ceil(filteredData.length / itemsPerPage)}</span>
-                    <button disabled={currentPage * itemsPerPage >= filteredData.length} onClick={() => setCurrentPage(p => p + 1)}>Вперед</button>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 text-xs">
+                    <button className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer transition-colors" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Назад</button>
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">{currentPage} / {Math.ceil(filteredData.length / itemsPerPage)}</span>
+                    <button className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer transition-colors" disabled={currentPage * itemsPerPage >= filteredData.length} onClick={() => setCurrentPage(p => p + 1)}>Вперед</button>
                 </div>
                 {selectedWeek && (
-                    <div className="week-filter-bar">
+                    <div className="flex items-center justify-between mt-3 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-700 dark:text-blue-300">
                         <span>📅 {selectedWeek.label}</span>
-                        <button className="clear-week-btn" onClick={() => { setSelectedWeek(null); setCurrentPage(1); }}>✕ Сбросить</button>
+                        <button className="text-red-500 hover:text-red-600 font-medium cursor-pointer" onClick={() => { setSelectedWeek(null); setCurrentPage(1); }}>✕ Сбросить</button>
                     </div>
                 )}
             </div>
