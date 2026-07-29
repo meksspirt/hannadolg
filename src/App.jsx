@@ -1240,7 +1240,7 @@ const App = () => {
 
                 <div className="pagination">
                     <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Назад</button>
-                    <span>{currentPage}</span>
+                    <span>{currentPage} / {Math.ceil(filteredData.length / itemsPerPage)}</span>
                     <button disabled={currentPage * itemsPerPage >= filteredData.length} onClick={() => setCurrentPage(p => p + 1)}>Вперед</button>
                 </div>
                 {selectedWeek && (
