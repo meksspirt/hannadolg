@@ -1057,39 +1057,168 @@ td {
 .milestones-card {
     margin-bottom: 2rem;
     padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
 }
 
-.repayment-plan h3 {
+.milestones-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), #8b5cf6, var(--primary));
+    background-size: 200% 100%;
+    animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0%, 100% { background-position: 0% 0%; }
+    50% { background-position: 100% 0%; }
+}
+
+.repayment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 1.5rem;
-    font-size: 1.1rem;
+}
+
+.repayment-header h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.repayment-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.repayment-hero {
+    text-align: center;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(139, 92, 246, 0.05));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    position: relative;
+}
+
+.repayment-hero-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.3px;
+}
+
+.repayment-hero-amount {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+}
+
+.repayment-hero-amount .value-symbol {
+    font-size: 1.4rem;
+    opacity: 0.6;
+}
+
+.repayment-hero-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.6rem;
+}
+
+.repayment-progress {
+    margin-bottom: 1.25rem;
+    padding: 0 0.25rem;
+}
+
+.repayment-progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.repayment-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--primary), #8b5cf6);
+    transition: width 0.6s ease;
+}
+
+.repayment-progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--text-muted);
 }
 
 .repayment-details {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
 }
 
 .repayment-item {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 1rem 1.25rem;
+    gap: 0.3rem;
+    padding: 0.85rem 1rem;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
+    transition: border-color 0.2s;
+}
+
+.repayment-item:hover {
+    border-color: var(--primary);
+}
+
+.repayment-item-icon {
+    font-size: 0.85rem;
+    margin-bottom: 0.15rem;
 }
 
 .repayment-label {
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
     font-weight: 500;
+    letter-spacing: 0.2px;
 }
 
 .repayment-value {
-    font-size: 1.35rem;
+    font-size: 1.15rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--text);
+}
+
+.repayment-value .value-symbol {
+    font-size: 0.85rem;
+    font-weight: 500;
+    opacity: 0.6;
+}
+
+@media (max-width: 600px) {
+    .repayment-details {
+        grid-template-columns: 1fr;
+    }
+    .repayment-hero-amount {
+        font-size: 1.7rem;
+    }
 }
 
 /* Metric Cards */

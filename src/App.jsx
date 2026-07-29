@@ -727,35 +727,62 @@ const App = () => {
 
             {/* План погашения до 31.12.2026 */}
             <div className="card milestones-card">
-                <div className="repayment-plan">
-                    <h3>План погашения до 31.12.2026 🎯</h3>
-                    {(() => {
-                        const target = new Date(2026, 11, 31); // 31 декабря 2026
-                        const now = new Date();
-                        const monthsLeft = Math.max(1, (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()));
-                        const monthlyPayment = monthsLeft > 0 ? stats.currentDebt / monthsLeft : stats.currentDebt;
-                        return (
+                {(() => {
+                    const target = new Date(2026, 11, 31);
+                    const now = new Date();
+                    const monthsLeft = Math.max(1, (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()));
+                    const monthlyPayment = monthsLeft > 0 ? stats.currentDebt / monthsLeft : stats.currentDebt;
+                    const yearStart = new Date(2026, 0, 1);
+                    const totalYearMs = target - yearStart;
+                    const elapsedMs = now - yearStart;
+                    const progressPct = Math.min(100, Math.max(0, (elapsedMs / totalYearMs) * 100));
+                    return (
+                        <>
+                            <div className="repayment-header">
+                                <h3>Погашение до 31.12.2026 🎯</h3>
+                                <span className="repayment-badge">
+                                    {monthsLeft} мес. осталось
+                                </span>
+                            </div>
+                            <div className="repayment-hero">
+                                <div className="repayment-hero-label">Ежемесячный платёж</div>
+                                <div className="repayment-hero-amount">
+                                    {formatAmount(monthlyPayment)} <span className="value-symbol">₴</span>
+                                </div>
+                                <div className="repayment-hero-sub">
+                                    {formatAmount(stats.currentDebt)} ₴ · {monthsLeft} платежей
+                                </div>
+                            </div>
+                            <div className="repayment-progress">
+                                <div className="repayment-progress-bar">
+                                    <div className="repayment-progress-fill" style={{ width: `${progressPct}%` }} />
+                                </div>
+                                <div className="repayment-progress-labels">
+                                    <span>Начало</span>
+                                    <span>{progressPct.toFixed(0)}%</span>
+                                    <span>31.12.2026</span>
+                                </div>
+                            </div>
                             <div className="repayment-details">
                                 <div className="repayment-item">
+                                    <span className="repayment-item-icon">📅</span>
                                     <span className="repayment-label">Осталось месяцев</span>
                                     <span className="repayment-value">{monthsLeft}</span>
                                 </div>
                                 <div className="repayment-item">
-                                    <span className="repayment-label">Ежемесячный платёж</span>
-                                    <span className="repayment-value">{formatAmount(monthlyPayment)} <span className="value-symbol">₴</span></span>
-                                </div>
-                                <div className="repayment-item">
+                                    <span className="repayment-item-icon">💰</span>
                                     <span className="repayment-label">Текущий долг</span>
                                     <span className="repayment-value">{formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span></span>
                                 </div>
                                 <div className="repayment-item">
+                                    <span className="repayment-item-icon">📊</span>
                                     <span className="repayment-label">Всего к выплате</span>
                                     <span className="repayment-value">{formatAmount(monthlyPayment * monthsLeft)} <span className="value-symbol">₴</span></span>
                                 </div>
                             </div>
-                        );
-                    })()}
-                </div>
+                        </>
+                    );
+                })()}
             </div>
 
             <div className="stats-grid">
