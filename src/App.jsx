@@ -732,10 +732,7 @@ const App = () => {
                     const now = new Date();
                     const monthsLeft = Math.max(1, (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()));
                     const monthlyPayment = monthsLeft > 0 ? stats.currentDebt / monthsLeft : stats.currentDebt;
-                    const yearStart = new Date(2026, 0, 1);
-                    const totalYearMs = target - yearStart;
-                    const elapsedMs = now - yearStart;
-                    const progressPct = Math.min(100, Math.max(0, (elapsedMs / totalYearMs) * 100));
+                    const repayPct = stats.totalGiven > 0 ? Math.min(100, (stats.totalReceived / stats.totalGiven) * 100) : 0;
                     return (
                         <>
                             <div className="repayment-header">
@@ -755,12 +752,12 @@ const App = () => {
                             </div>
                             <div className="repayment-progress">
                                 <div className="repayment-progress-bar">
-                                    <div className="repayment-progress-fill" style={{ width: `${progressPct}%` }} />
+                                    <div className="repayment-progress-fill" style={{ width: `${repayPct}%` }} />
                                 </div>
                                 <div className="repayment-progress-labels">
-                                    <span>Начало</span>
-                                    <span>{progressPct.toFixed(0)}%</span>
-                                    <span>31.12.2026</span>
+                                    <span>Выдано: {formatAmount(stats.totalGiven)} ₴</span>
+                                    <span>Возвращено: {repayPct.toFixed(0)}%</span>
+                                    <span>Цель: 100%</span>
                                 </div>
                             </div>
                             <div className="repayment-details">
