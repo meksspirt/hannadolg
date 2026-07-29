@@ -1033,9 +1033,8 @@ const App = () => {
                                         setPayoffTargetDate('');
                                         localStorage.removeItem('payoffTargetDate');
                                     }}>✕ Сбросить дату</button>
-                )}
-            </div>
-        </div>
+                                )}
+                            </div>
                         )}
                     </div>
 
