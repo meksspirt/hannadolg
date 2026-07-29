@@ -347,6 +347,24 @@ body {
     box-shadow: 0 0 0 1px var(--primary);
 }
 
+.month-summary {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.month-summary strong {
+    color: var(--text);
+    font-weight: 700;
+}
+
 .week-filter-bar {
     display: flex;
     align-items: center;

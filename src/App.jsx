@@ -1140,6 +1140,17 @@ const App = () => {
                                 <button disabled={monthlyPage >= Math.ceil(stats.monthlyStats.length / 4)} onClick={() => setMonthlyPage(p => p + 1)}>След. →</button>
                             </div>
                         )}
+                        {stats.monthlyStats.length > 0 && (() => {
+                            const pos = stats.monthlyStats.filter(m => m.received > m.given).length;
+                            const neg = stats.monthlyStats.filter(m => m.given > m.received).length;
+                            return (
+                                <div className="month-summary">
+                                    <span>Положительная динамика: <strong>{pos}</strong> мес.</span>
+                                    <span>Отрицательная динамика: <strong>{neg}</strong> мес.</span>
+                                    <span>Всего месяцев: <strong>{stats.monthlyStats.length}</strong></span>
+                                </div>
+                            );
+                        })()}
                     </>
                 ) : (
                     <>
