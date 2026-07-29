@@ -240,6 +240,47 @@ body {
 
 /* Месячная статистика */
 .monthly-stats {
+
+.stats-view-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.stats-view-header h3 {
+    margin: 0;
+}
+
+.stats-view-tabs {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--bg);
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.stats-view-tabs button {
+    padding: 5px 14px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.stats-view-tabs button.active {
+    background: var(--card);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.monthly-stats {
     display: flex;
     flex-direction: column;
     gap: 1rem;

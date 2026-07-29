@@ -38,6 +38,8 @@ const App = () => {
     const [filter, setFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
     const [monthlyPage, setMonthlyPage] = useState(1);
+    const [statsView, setStatsView] = useState('month');
+    const [weeklyPage, setWeeklyPage] = useState(1);
     const [exchangeRates, setExchangeRates] = useState({ usd: 41.5, eur: 44.8 });
     const [isOnline, setIsOnline] = useState(true);
     const itemsPerPage = 10;
@@ -237,7 +239,7 @@ const App = () => {
     const stats = useMemo(() => {
         if (data.length === 0) return {
             currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
-            avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, lastWeekGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [],
+            avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, lastWeekGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [], weeklyStats: [],
             debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
             weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
             simulatorData: [], _monthlyReceivedRate: 0, _netMonthlyChange: 0, benchmarks: { monthlyChange: 0, intervalChange: 0 },
@@ -388,6 +390,35 @@ const App = () => {
             .sort(([a], [b]) => b.localeCompare(a))
             .map(([month, stats]) => ({
                 month,
+                ...stats,
+                net: stats.given - stats.received
+            }));
+
+        // Недельная статистика
+        const weeklyMap = {};
+        data.forEach(t => {
+            const d = t.sortDate;
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(d);
+            monday.setDate(diff);
+            const weekKey = monday.toISOString().slice(0, 10);
+            if (!weeklyMap[weekKey]) {
+                weeklyMap[weekKey] = { given: 0, received: 0, loans: 0, returns: 0, weekStart: monday };
+            }
+            if (t.type === 'Дано в долг') {
+                weeklyMap[weekKey].given += t.amount;
+                weeklyMap[weekKey].loans++;
+            } else {
+                weeklyMap[weekKey].received += t.amount;
+                weeklyMap[weekKey].returns++;
+            }
+        });
+
+        const weeklyStats = Object.entries(weeklyMap)
+            .sort(([a], [b]) => b.localeCompare(a))
+            .map(([week, stats]) => ({
+                week,
                 ...stats,
                 net: stats.given - stats.received
             }));
@@ -590,6 +621,7 @@ const App = () => {
             avgMonthlyGiven,
             topCategories,
             monthlyStats,
+            weeklyStats,
             debtTrend,
             projectedPayoff,
             isOverLimit,
@@ -1060,50 +1092,92 @@ const App = () => {
             </div>
 
 
-            {/* Месячная статистика */}
+            {/* Статистика по месяцам / неделям */}
             <div className="card analytics-card">
-                <h3>Статистика по месяцам</h3>
-                <div className="monthly-stats">
-                    {stats.monthlyStats
-                        .slice((monthlyPage - 1) * 4, monthlyPage * 4)
-                        .map((month, i) => (
-                        <div key={i} className="month-item">
-                            <div className="month-header">
-                                <span className="month-name">
-                                    {new Date(month.month + '-01').toLocaleDateString('ru', {
-                                        year: 'numeric',
-                                        month: 'long'
-                                    })}
-                                </span>
-                                <span className={`month-net ${month.net > 0 ? 'negative' : 'positive'}`}>
-                                    {month.net > 0 ? '+' : ''}{formatAmount(month.net)} ₴
-                                </span>
-                            </div>
-                            <div className="month-details">
-                                <div className="month-stat">
-                                    <span>Дано: {formatAmount(month.given)} ₴ ({month.loans} раз)</span>
-                                </div>
-                                <div className="month-stat">
-                                    <span>Вернула: {formatAmount(month.received)} ₴ ({month.returns} раз)</span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                {stats.monthlyStats.length > 4 && (
-                    <div className="pagination">
-                        <button
-                            disabled={monthlyPage <= 1}
-                            onClick={() => setMonthlyPage(p => p - 1)}
-                        >← Пред.</button>
-                        <span className="page-info">
-                            {monthlyPage} / {Math.ceil(stats.monthlyStats.length / 4)}
-                        </span>
-                        <button
-                            disabled={monthlyPage >= Math.ceil(stats.monthlyStats.length / 4)}
-                            onClick={() => setMonthlyPage(p => p + 1)}
-                        >След. →</button>
+                <div className="stats-view-header">
+                    <h3>Статистика по {statsView === 'month' ? 'месяцам' : 'неделям'}</h3>
+                    <div className="stats-view-tabs">
+                        <button className={statsView === 'month' ? 'active' : ''} onClick={() => setStatsView('month')}>Месяцы</button>
+                        <button className={statsView === 'week' ? 'active' : ''} onClick={() => setStatsView('week')}>Недели</button>
                     </div>
+                </div>
+                {statsView === 'month' ? (
+                    <>
+                        <div className="monthly-stats">
+                            {stats.monthlyStats
+                                .slice((monthlyPage - 1) * 4, monthlyPage * 4)
+                                .map((month, i) => (
+                                <div key={i} className="month-item">
+                                    <div className="month-header">
+                                        <span className="month-name">
+                                            {new Date(month.month + '-01').toLocaleDateString('ru', {
+                                                year: 'numeric',
+                                                month: 'long'
+                                            })}
+                                        </span>
+                                        <span className={`month-net ${month.net > 0 ? 'negative' : 'positive'}`}>
+                                            {month.net > 0 ? '+' : ''}{formatAmount(month.net)} ₴
+                                        </span>
+                                    </div>
+                                    <div className="month-details">
+                                        <div className="month-stat">
+                                            <span>Дано: {formatAmount(month.given)} ₴ ({month.loans} раз)</span>
+                                        </div>
+                                        <div className="month-stat">
+                                            <span>Вернула: {formatAmount(month.received)} ₴ ({month.returns} раз)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {stats.monthlyStats.length > 4 && (
+                            <div className="pagination">
+                                <button disabled={monthlyPage <= 1} onClick={() => setMonthlyPage(p => p - 1)}>← Пред.</button>
+                                <span className="page-info">{monthlyPage} / {Math.ceil(stats.monthlyStats.length / 4)}</span>
+                                <button disabled={monthlyPage >= Math.ceil(stats.monthlyStats.length / 4)} onClick={() => setMonthlyPage(p => p + 1)}>След. →</button>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <div className="monthly-stats">
+                            {stats.weeklyStats
+                                .slice((weeklyPage - 1) * 4, weeklyPage * 4)
+                                .map((week, i) => (
+                                <div key={i} className="month-item">
+                                    <div className="month-header">
+                                        <span className="month-name">
+                                            {new Date(week.week + 'T00:00:00').toLocaleDateString('ru', {
+                                                day: 'numeric',
+                                                month: 'long'
+                                            })} — {new Date(new Date(week.week + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('ru', {
+                                                day: 'numeric',
+                                                month: 'long'
+                                            })}
+                                        </span>
+                                        <span className={`month-net ${week.net > 0 ? 'negative' : 'positive'}`}>
+                                            {week.net > 0 ? '+' : ''}{formatAmount(week.net)} ₴
+                                        </span>
+                                    </div>
+                                    <div className="month-details">
+                                        <div className="month-stat">
+                                            <span>Дано: {formatAmount(week.given)} ₴ ({week.loans} раз)</span>
+                                        </div>
+                                        <div className="month-stat">
+                                            <span>Вернула: {formatAmount(week.received)} ₴ ({week.returns} раз)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {stats.weeklyStats.length > 4 && (
+                            <div className="pagination">
+                                <button disabled={weeklyPage <= 1} onClick={() => setWeeklyPage(p => p - 1)}>← Пред.</button>
+                                <span className="page-info">{weeklyPage} / {Math.ceil(stats.weeklyStats.length / 4)}</span>
+                                <button disabled={weeklyPage >= Math.ceil(stats.weeklyStats.length / 4)} onClick={() => setWeeklyPage(p => p + 1)}>След. →</button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
