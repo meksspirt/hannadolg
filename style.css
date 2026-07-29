@@ -1,3 +1,11 @@
+@import "tailwindcss";
+@import "./src/theme.css";
+
+@plugin "tailwindcss-animate";
+@plugin "tailwindcss-react-aria-components";
+
+@custom-variant dark (&:where(.dark-theme, .dark-theme *, .dark-mode, .dark-mode *));
+
 :root {
     --bg: #f8fafc;
     --card: #ffffff;
