@@ -242,7 +242,7 @@ const App = () => {
             simulatorData: [], _monthlyReceivedRate: 0, _netMonthlyChange: 0, benchmarks: { monthlyChange: 0, intervalChange: 0 },
             badHabits: { total: 0, potentialSavings: 0 }, achievements: [], plannedPayments: [],
             inflationProfit: 0, stressScore: 0, joyBudget: 0, anomalies: [],
-            milestones: [], strategies: { snowball: [], avalanche: [] },
+            strategies: { snowball: [], avalanche: [] },
             intervals: { avg: 0, trend: 'stable' }, burndown: [], safetyLimit,
             debtAgeDays: 0, liberty: { percentage: 0, value: 0 },
             opportunityCost: 0, reliabilityRanking: [], staleLoans: [],
@@ -526,13 +526,7 @@ const App = () => {
             }
         });
 
-        // 10. Мили (Milestones)
-        const maxDebtEver = Math.max(...cumulativeData.map(d => d.debt), currentDebt);
-        const achievements_milestones = [
-            { label: '25%', value: 0.25, reached: currentDebt <= maxDebtEver * 0.75 },
-            { label: '50%', value: 0.50, reached: currentDebt <= maxDebtEver * 0.50 },
-            { label: '75%', value: 0.75, reached: currentDebt <= maxDebtEver * 0.25 },
-        ];
+        // 10. Мили (Milestones) — удалено, заменено на план погашения
 
         // 11. Снежный ком vs Лавина
         const entities = {};
@@ -615,7 +609,7 @@ const App = () => {
             stressScore,
             joyBudget,
             anomalies,
-            milestones: achievements_milestones,
+
             strategies: { snowball: snowball.slice(0, 3), avalanche: avalanche.slice(0, 3) },
             intervals: { avg: avgInterval, trend: intervalTrend },
             burndown,
@@ -731,16 +725,36 @@ const App = () => {
                 </div>
             )}
 
-            {/* Milestones Progress Table */}
+            {/* План погашения до 31.12.2026 */}
             <div className="card milestones-card">
-                <h3>Финансовые мили (Milestones) 🗺️</h3>
-                <div className="milestones-track">
-                    {stats.milestones.map((ms, i) => (
-                        <div key={i} className={`milestone-step ${ms.reached ? 'reached' : ''}`}>
-                            <div className="step-circle">{ms.reached ? '✅' : i + 1}</div>
-                            <span className="step-label">{ms.label}</span>
-                        </div>
-                    ))}
+                <div className="repayment-plan">
+                    <h3>План погашения до 31.12.2026 🎯</h3>
+                    {(() => {
+                        const target = new Date(2026, 11, 31); // 31 декабря 2026
+                        const now = new Date();
+                        const monthsLeft = Math.max(1, (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()));
+                        const monthlyPayment = monthsLeft > 0 ? stats.currentDebt / monthsLeft : stats.currentDebt;
+                        return (
+                            <div className="repayment-details">
+                                <div className="repayment-item">
+                                    <span className="repayment-label">Осталось месяцев</span>
+                                    <span className="repayment-value">{monthsLeft}</span>
+                                </div>
+                                <div className="repayment-item">
+                                    <span className="repayment-label">Ежемесячный платёж</span>
+                                    <span className="repayment-value">{formatAmount(monthlyPayment)} <span className="value-symbol">₴</span></span>
+                                </div>
+                                <div className="repayment-item">
+                                    <span className="repayment-label">Текущий долг</span>
+                                    <span className="repayment-value">{formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span></span>
+                                </div>
+                                <div className="repayment-item">
+                                    <span className="repayment-label">Всего к выплате</span>
+                                    <span className="repayment-value">{formatAmount(monthlyPayment * monthsLeft)} <span className="value-symbol">₴</span></span>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
 
