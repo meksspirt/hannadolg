@@ -323,6 +323,50 @@ body {
     color: var(--text-muted);
 }
 
+.week-item {
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.week-item:hover {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.03);
+}
+
+.week-item.active {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.06);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+.week-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.8rem;
+    margin-bottom: 1rem;
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.clear-week-btn {
+    background: none;
+    border: none;
+    color: var(--danger);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.clear-week-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
 /* Экспорт */
 .export-card {
     text-align: center;

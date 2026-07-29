@@ -40,6 +40,7 @@ const App = () => {
     const [monthlyPage, setMonthlyPage] = useState(1);
     const [statsView, setStatsView] = useState('month');
     const [weeklyPage, setWeeklyPage] = useState(1);
+    const [selectedWeek, setSelectedWeek] = useState(null);
     const [exchangeRates, setExchangeRates] = useState({ usd: 41.5, eur: 44.8 });
     const [isOnline, setIsOnline] = useState(true);
     const itemsPerPage = 10;
@@ -667,9 +668,10 @@ const App = () => {
             const matchesSearch = (t.comment || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (t.payee || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchesFilter = filter === 'all' || (filter === 'given' && t.type === 'Дано в долг') || (filter === 'received' && t.type === 'Возврат');
-            return matchesSearch && matchesFilter;
+            const matchesWeek = !selectedWeek || (t.sortDate >= selectedWeek.start && t.sortDate <= selectedWeek.end);
+            return matchesSearch && matchesFilter && matchesWeek;
         });
-    }, [data, searchQuery, filter]);
+    }, [data, searchQuery, filter, selectedWeek]);
 
     const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -1144,7 +1146,14 @@ const App = () => {
                             {stats.weeklyStats
                                 .slice((weeklyPage - 1) * 4, weeklyPage * 4)
                                 .map((week, i) => (
-                                <div key={i} className="month-item">
+                                <div key={i} className={`month-item week-item ${selectedWeek?.week === week.week ? 'active' : ''}`} onClick={() => {
+                                    const monday = new Date(week.week + 'T00:00:00');
+                                    const sunday = new Date(monday);
+                                    sunday.setDate(sunday.getDate() + 6);
+                                    sunday.setHours(23, 59, 59, 999);
+                                    setSelectedWeek(selectedWeek?.week === week.week ? null : { week: week.week, start: monday, end: sunday, label: `${monday.toLocaleDateString('ru', { day: 'numeric', month: 'long' })} — ${sunday.toLocaleDateString('ru', { day: 'numeric', month: 'long' })}` });
+                                    setCurrentPage(1);
+                                }}>
                                     <div className="month-header">
                                         <span className="month-name">
                                             {new Date(week.week + 'T00:00:00').toLocaleDateString('ru', {
@@ -1234,8 +1243,14 @@ const App = () => {
                     <span>{currentPage}</span>
                     <button disabled={currentPage * itemsPerPage >= filteredData.length} onClick={() => setCurrentPage(p => p + 1)}>Вперед</button>
                 </div>
-            </div>
-        </div>
+                    </div>
+                </div>
+                {selectedWeek && (
+                    <div className="week-filter-bar">
+                        <span>📅 {selectedWeek.label}</span>
+                        <button className="clear-week-btn" onClick={() => { setSelectedWeek(null); setCurrentPage(1); }}>✕ Сбросить</button>
+                    </div>
+                )}
     );
 };
 
