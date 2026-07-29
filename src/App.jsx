@@ -1239,8 +1239,7 @@ const App = () => {
                     </table>
                 </div>
 
-                <Paginations.PaginationButtonGroup
-                    align="center"
+                <Paginations.PaginationPageDefault
                     page={currentPage}
                     total={Math.max(1, Math.ceil(filteredData.length / itemsPerPage))}
                     onPageChange={(page) => setCurrentPage(page)}
