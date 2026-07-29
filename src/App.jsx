@@ -14,6 +14,7 @@ import ParentSize from '@visx/responsive/lib/components/ParentSize';
 import DebtChart from './DebtChart';
 import FinancialAdvice from './FinancialAdvice';
 import { format } from 'date-fns';
+import * as Paginations from '@/components/application/pagination/pagination';
 
 const App = () => {
     const formatAmount = (num) => {
@@ -1238,11 +1239,12 @@ const App = () => {
                     </table>
                 </div>
 
-                <div className="pagination">
-                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Назад</button>
-                    <span>{currentPage} / {Math.ceil(filteredData.length / itemsPerPage)}</span>
-                    <button disabled={currentPage * itemsPerPage >= filteredData.length} onClick={() => setCurrentPage(p => p + 1)}>Вперед</button>
-                </div>
+                <Paginations.PaginationButtonGroup
+                    align="center"
+                    page={currentPage}
+                    total={Math.max(1, Math.ceil(filteredData.length / itemsPerPage))}
+                    onPageChange={(page) => setCurrentPage(page)}
+                />
                 {selectedWeek && (
                     <div className="week-filter-bar">
                         <span>📅 {selectedWeek.label}</span>
