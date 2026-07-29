@@ -1084,10 +1084,9 @@ const App = () => {
                                             <span style={{display:'block', marginTop:'4px', color:'#10b981'}}>
                                                 💡 Быстрее на <strong>{monthsSaved} мес.</strong> vs без доплаты
                                             </span>
-                )}
-            </div>
-        </div>
-    );
+                                        )}
+                                    </div>
+                                );
                             })()}
                         </div>
                     )}
