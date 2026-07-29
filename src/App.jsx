@@ -1033,8 +1033,9 @@ const App = () => {
                                         setPayoffTargetDate('');
                                         localStorage.removeItem('payoffTargetDate');
                                     }}>✕ Сбросить дату</button>
-                                )}
-                            </div>
+                )}
+            </div>
+        </div>
                         )}
                     </div>
 
@@ -1084,9 +1085,10 @@ const App = () => {
                                             <span style={{display:'block', marginTop:'4px', color:'#10b981'}}>
                                                 💡 Быстрее на <strong>{monthsSaved} мес.</strong> vs без доплаты
                                             </span>
-                                        )}
-                                    </div>
-                                );
+                )}
+            </div>
+        </div>
+    );
                             })()}
                         </div>
                     )}
@@ -1250,6 +1252,7 @@ const App = () => {
                     </div>
                 )}
             </div>
+        </div>
     );
 };
 
