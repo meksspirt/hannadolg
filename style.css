@@ -239,8 +239,6 @@ body {
 }
 
 /* Месячная статистика */
-.monthly-stats {
-
 .stats-view-header {
     display: flex;
     align-items: center;
