@@ -1243,14 +1243,13 @@ const App = () => {
                     <span>{currentPage}</span>
                     <button disabled={currentPage * itemsPerPage >= filteredData.length} onClick={() => setCurrentPage(p => p + 1)}>Вперед</button>
                 </div>
-                    </div>
-                </div>
                 {selectedWeek && (
                     <div className="week-filter-bar">
                         <span>📅 {selectedWeek.label}</span>
                         <button className="clear-week-btn" onClick={() => { setSelectedWeek(null); setCurrentPage(1); }}>✕ Сбросить</button>
                     </div>
                 )}
+            </div>
     );
 };
 
