@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
-const DATA_FILE = '/tmp/transactions.json';
+// Кроссплатформенный путь к временному файлу в OS temp dir
+const DATA_FILE = path.join(os.tmpdir(), 'debtsense-transactions.json');
 
 export const loadTransactions = () => {
     try {
@@ -28,9 +30,13 @@ export const saveTransactions = (transactions) => {
 
 export const addTransactions = (newTransactions) => {
     const existing = loadTransactions();
-    const existingDates = new Set(existing.map(t => t.createdDate));
+    // Поддерживаем как created_date (Supabase/DB), так и createdDate (CSV)
+    const existingDates = new Set(existing.map(t => t.created_date || t.createdDate).filter(Boolean));
     
-    const toAdd = newTransactions.filter(t => !existingDates.has(t.createdDate));
+    const toAdd = newTransactions.filter(t => {
+        const key = t.created_date || t.createdDate;
+        return key && !existingDates.has(key);
+    });
     
     if (toAdd.length > 0) {
         const updated = [...existing, ...toAdd];

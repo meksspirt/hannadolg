@@ -40,9 +40,9 @@ export default async function handler(req, res) {
                     income_account_name: t.incomeAccountName,
                     income: t.income,
                     income_currency: 'UAH',
-                    created_date: t.createdDate,
-                    changed_date: null,
-                    raw_line: t.rawLine
+                    created_date: t.createdDate || t.created_date || new Date().toISOString(),
+                    changed_date: t.changedDate || t.changed_date || null,
+                    raw_line: t.rawLine || ''
                 }));
                 
                 addedCount = addToFile(formatted);
@@ -54,18 +54,18 @@ export default async function handler(req, res) {
             
             const formatted = transactions.map(t => ({
                 date: t.date,
-                category_name: t.categoryName,
+                category_name: t.categoryName || t.category_name,
                 payee: t.payee,
                 comment: t.comment,
-                outcome_account_name: t.outcomeAccountName,
-                outcome: t.outcome,
-                outcome_currency: 'UAH',
-                income_account_name: t.incomeAccountName,
-                income: t.income,
-                income_currency: 'UAH',
-                created_date: t.createdDate,
-                changed_date: null,
-                raw_line: t.rawLine
+                outcome_account_name: t.outcomeAccountName || t.outcome_account_name,
+                outcome: t.outcome || 0,
+                outcome_currency: t.outcomeCurrency || t.outcome_currency || 'UAH',
+                income_account_name: t.incomeAccountName || t.income_account_name,
+                income: t.income || 0,
+                income_currency: t.incomeCurrency || t.income_currency || 'UAH',
+                created_date: t.createdDate || t.created_date || new Date().toISOString(),
+                changed_date: t.changedDate || t.changed_date || null,
+                raw_line: t.rawLine || ''
             }));
             
             addedCount = addToFile(formatted);

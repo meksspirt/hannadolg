@@ -1,59 +1,59 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Upload,
-    Search,
     Sun,
     Moon,
-    ArrowUpRight,
-    ArrowDownLeft,
     Wifi,
-    WifiOff
+    WifiOff,
+    LayoutDashboard,
+    LineChart,
+    TableProperties
 } from 'lucide-react';
-import { loadFromLocalStorage, saveToLocalStorage, addToLocalStorage } from './localStorage-storage.js';
-import ParentSize from '@visx/responsive/lib/components/ParentSize';
+import { ParentSize } from '@visx/responsive';
 import DebtChart from './DebtChart';
 import FinancialAdvice from './FinancialAdvice';
-import { format } from 'date-fns';
-import * as Paginations from '@/components/application/pagination/pagination';
+import StatsOverviewGrid from './components/analytics/StatsOverviewGrid';
+import RepaymentPlanCard from './components/analytics/RepaymentPlanCard';
+import DeepInsightsView from './components/analytics/DeepInsightsView';
+import TransactionManager from './components/transactions/TransactionManager';
+import {
+    processTransactions,
+    calculateDebtStats,
+    parseCsvFile,
+    formatAmount
+} from './utils/debt-analytics';
 
 const App = () => {
-    const formatAmount = (num) => {
-        return new Intl.NumberFormat('ru-RU', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(num).replace(',', '.');
-    };
+    // Навигация верхнего уровня
+    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'insights', 'transactions'
 
+    // Настройки графика и визуализации
     const [chartMode, setChartMode] = useState('debt'); // 'debt' or 'flow'
     const [chartPeriod, setChartPeriod] = useState('all'); // '1d','1m','6m','ytd','1y','all'
-    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
-    const [safetyLimit, setSafetyLimit] = useState(localStorage.getItem('safetyLimit') || 50000);
+    const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+    // Финансовые параметры пользователя
+    const [safetyLimit, setSafetyLimit] = useState(() => Number(localStorage.getItem('safetyLimit')) || 50000);
     const [payoffTargetDate, setPayoffTargetDate] = useState(() => localStorage.getItem('payoffTargetDate') || '');
     const [extraPayment, setExtraPayment] = useState(0);
     const [monthlyIncome, setMonthlyIncome] = useState(() => Number(localStorage.getItem('monthlyIncome')) || 30000);
     const [inflationRate, setInflationRate] = useState(() => Number(localStorage.getItem('inflationRate')) || 15);
+
+    // Данные и состояние сети
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filter, setFilter] = useState('all');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [monthlyPage, setMonthlyPage] = useState(1);
-    const [statsView, setStatsView] = useState('month');
-    const [weeklyPage, setWeeklyPage] = useState(1);
-    const [selectedWeek, setSelectedWeek] = useState(null);
     const [exchangeRates, setExchangeRates] = useState({ usd: 41.5, eur: 44.8 });
     const [isOnline, setIsOnline] = useState(true);
-    const itemsPerPage = 10;
 
+    // Применение темы
     useEffect(() => {
         document.body.className = theme === 'dark' ? 'dark-theme' : '';
         localStorage.setItem('theme', theme);
     }, [theme]);
 
+    // Начальная загрузка
     useEffect(() => {
-        // Очищаем старые локальные данные транзакций, чтобы использовать только серверные
-        localStorage.removeItem('debt-sense-transactions');
         fetchData();
         fetchRates();
     }, []);
@@ -62,9 +62,9 @@ const App = () => {
         try {
             const res = await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
             if (res.ok) {
-                const data = await res.json();
-                const usd = data.find(c => c.cc === 'USD')?.rate || 41.5;
-                const eur = data.find(c => c.cc === 'EUR')?.rate || 44.8;
+                const nbuData = await res.json();
+                const usd = nbuData.find(c => c.cc === 'USD')?.rate || 41.5;
+                const eur = nbuData.find(c => c.cc === 'EUR')?.rate || 44.8;
                 setExchangeRates({ usd, eur });
             }
         } catch (e) {
@@ -75,13 +75,11 @@ const App = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-
-            // Пытаемся загрузить с сервера
             const res = await fetch('/api/get-transactions');
             if (res.ok) {
                 const result = await res.json();
-                const processedData = processTransactions(result, true);
-                setData(processedData);
+                const processed = processTransactions(result);
+                setData(processed);
                 setIsOnline(true);
             } else {
                 throw new Error('Server error');
@@ -95,87 +93,9 @@ const App = () => {
         }
     };
 
-    const processTransactions = (raw, isDbData) => {
-        const isHannaCounterparty = (transaction) => {
-            const payee = (transaction.payee || '').toLowerCase();
-            return payee.includes('ганна є');
-        };
-
-        const dateStr = (t) => t.date ?? '';
-        const toSortDate = (t) => {
-            const s = dateStr(t);
-            if (!s) return new Date(0);
-            return new Date(s.includes('.') ? s.split('.').reverse().join('-') : s);
-        };
-
-        const rows = raw.filter(isHannaCounterparty).map(t => {
-            const income = parseFloat(t.income ?? t.income_amount) || 0;
-            const outcome = parseFloat(t.outcome ?? t.outcome_amount) || 0;
-
-            // Правильная логика: определяем тип по счетам
-            // Если деньги идут В "Долги" - это "Дано в долг"
-            // Если деньги идут ИЗ "Долги" - это "Возврат"
-            let amount, type;
-
-            const incomeAccount = (t.income_account_name || '').toLowerCase();
-            const outcomeAccount = (t.outcome_account_name || '').toLowerCase();
-
-            const isDebtIncome = incomeAccount.includes('долги') || incomeAccount.includes('долг');
-            const isDebtOutcome = outcomeAccount.includes('долги') || outcomeAccount.includes('долг');
-
-            if (isDebtIncome) {
-                amount = income;
-                type = 'Дано в долг';
-            } else if (isDebtOutcome) {
-                amount = outcome;
-                type = 'Возврат';
-            } else {
-                // Не учитываем транзакции, не связанные со счетом "Долги"
-                return null;
-            }
-
-            const d = dateStr(t);
-            const sortDate = toSortDate(t);
-
-            return {
-                ...t,
-                amount,
-                type,
-                sortDate,
-                formattedDate: d
-            };
-        }).filter(Boolean);
-
-        rows.sort((a, b) => {
-            const diff = a.sortDate - b.sortDate;
-            if (diff !== 0) return diff;
-            const ca = new Date(a.created_date || a.createdDate || 0).getTime();
-            const cb = new Date(b.created_date || b.createdDate || 0).getTime();
-            return ca - cb;
-        });
-
-        let currentDebt = 0;
-        return rows
-            .map(t => {
-                if (t.type === 'Дано в долг') {
-                    currentDebt += t.amount;
-                } else {
-                    currentDebt -= t.amount;
-                }
-                return { ...t, currentDebt };
-            })
-            .sort((a, b) => b.sortDate - a.sortDate);
-    };
-
-    const uploadTransactions = async (
-        transactions,
-        emptyMessage = 'Транзакций не обнаружено.',
-        showSuccessAlert = true
-    ) => {
+    const uploadTransactions = async (transactions) => {
         if (!Array.isArray(transactions) || transactions.length === 0) {
-            if (showSuccessAlert) {
-                alert(emptyMessage);
-            }
+            alert('Транзакций Ганны не обнаружено в загруженном файле.');
             return;
         }
 
@@ -187,14 +107,10 @@ const App = () => {
                 body: JSON.stringify(transactions)
             });
 
-            if (!res.ok) {
-                throw new Error('Server error');
-            }
+            if (!res.ok) throw new Error('Server error');
 
             const result = await res.json();
-            if (showSuccessAlert) {
-                alert(result.message || 'Данные синхронизированы с сервером!');
-            }
+            alert(result.message || 'Данные синхронизированы!');
             setIsOnline(true);
             fetchData();
         } catch (e) {
@@ -206,480 +122,35 @@ const App = () => {
     };
 
     const handleFileUpload = (e) => {
-        const file = e.target.files[0];
+        const file = e.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async (event) => {
-            const text = event.target.result;
-            const lines = text.split(/\r?\n/).slice(1);
-            const parsed = lines.map(line => {
-                if (!line.trim()) return null;
-                const delimiter = line.includes(';') ? ';' : ',';
-                const clean = line.split(delimiter).map(col => col.replace(/"/g, '').trim());
-                if (clean.length < 12) return null;
-                if (!clean[2].includes("Ганна Є") || (!clean[4].includes("Долги") && !clean[7].includes("Долги"))) return null;
-                return {
-                    date: clean[0],
-                    categoryName: clean[1],
-                    payee: clean[2],
-                    comment: clean[3],
-                    outcomeAccountName: clean[4],
-                    outcome: parseFloat(clean[5]) || 0,
-                    incomeAccountName: clean[7],
-                    income: parseFloat(clean[8]) || 0,
-                    createdDate: clean[10],
-                    rawLine: line
-                };
-            }).filter(Boolean);
-
+            const text = event.target?.result;
+            const parsed = parseCsvFile(text);
             await uploadTransactions(parsed);
         };
         reader.readAsText(file, 'UTF-8');
+        e.target.value = '';
     };
 
+    // Вычисление расширенной аналитики через вынесенный модуль
     const stats = useMemo(() => {
-        if (data.length === 0) return {
-            currentDebt: 0, totalGiven: 0, totalReceived: 0, returnRate: 0,
-            avgLoanAmount: 0, loansPerMonth: 0, currentMonthGiven: 0, lastWeekGiven: 0, avgMonthlyGiven: 0, topCategories: [], monthlyStats: [], weeklyStats: [],
-            debtTrend: 'stable', projectedPayoff: null, isOverLimit: false,
-            weekdayStats: [], loanSizeStats: [], daysOfMonthData: [], cumulativeData: [], forecastData: [],
-            simulatorData: [], _monthlyReceivedRate: 0, _netMonthlyChange: 0, benchmarks: { monthlyChange: 0, intervalChange: 0 },
-            badHabits: { total: 0, potentialSavings: 0 }, achievements: [], plannedPayments: [],
-            inflationProfit: 0, stressScore: 0, joyBudget: 0, anomalies: [],
-            strategies: { snowball: [], avalanche: [] },
-            intervals: { avg: 0, trend: 'stable' }, burndown: [], safetyLimit,
-            debtAgeDays: 0, liberty: { percentage: 0, value: 0 },
-            opportunityCost: 0, reliabilityRanking: [], staleLoans: [],
-            realValue: { nominal: 0, real: 0, gain: 0, percent: 0 },
-            currency: { usd: 0, eur: 0, rates: { usd: 41.5, eur: 44.8 }, hedgeGain: 0 }
-        };
-
-        const loans = data.filter(t => t.type === 'Дано в долг');
-        const returns = data.filter(t => t.type === 'Возврат');
-        const totalGiven = loans.reduce((sum, t) => sum + t.amount, 0);
-        const totalReceived = returns.reduce((sum, t) => sum + t.amount, 0);
-        const currentDebt = totalGiven - totalReceived;
-
-        // Средний размер долга
-        const avgLoanAmount = loans.length > 0 ? totalGiven / loans.length : 0;
-
-        // Частота займов (займов в месяц)
-        const firstLoan = loans[loans.length - 1];
-        const lastLoan = loans[0];
-        const monthsDiff = firstLoan && lastLoan ?
-            Math.max(1, Math.ceil((lastLoan.sortDate - firstLoan.sortDate) / (1000 * 60 * 60 * 24 * 30))) : 1;
-        const loansPerMonth = loans.length / monthsDiff;
-        const avgMonthlyGiven = totalGiven / monthsDiff;
-        const now = new Date();
-        const currentMonthGiven = loans
-            .filter((t) => (
-                t.sortDate.getFullYear() === now.getFullYear() &&
-                t.sortDate.getMonth() === now.getMonth()
-            ))
-            .reduce((sum, t) => sum + t.amount, 0);
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        const lastWeekGiven = loans
-            .filter(t => t.sortDate >= weekAgo)
-            .reduce((sum, t) => sum + t.amount, 0);
-
-        // Топ категорий (по комментариям)
-        const categoryMap = {};
-        const weekdayMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-        const loanSizeBuckets = {
-            small: { amount: 0, count: 0 },
-            medium: { amount: 0, count: 0 },
-            large: { amount: 0, count: 0 }
-        };
-        const daysOfMonthMap = Array(31).fill(0).reduce((acc, _, i) => ({ ...acc, [i + 1]: 0 }), {});
-
-        loans.forEach(t => {
-            const comment = t.comment.toLowerCase();
-            let category = 'Прочее';
-            if (comment.includes('еда') || comment.includes('пиво') || comment.includes('пузат')) category = 'Еда и напитки';
-            else if (comment.includes('сигарет')) category = 'Вредные привычки';
-            else if (comment.includes('книг') || comment.includes('ленточ')) category = 'Канцелярия';
-            else if (comment.includes('поповн') || comment.includes('пополн')) category = 'Пополнение счета';
-            categoryMap[category] = (categoryMap[category] || 0) + t.amount;
-
-            // Дни недели
-            const day = t.sortDate.getDay();
-            weekdayMap[day] += t.amount;
-
-            // Размеры займов
-            if (t.amount < 500) {
-                loanSizeBuckets.small.amount += t.amount;
-                loanSizeBuckets.small.count++;
-            } else if (t.amount <= 2000) {
-                loanSizeBuckets.medium.amount += t.amount;
-                loanSizeBuckets.medium.count++;
-            } else {
-                loanSizeBuckets.large.amount += t.amount;
-                loanSizeBuckets.large.count++;
-            }
-
-            // Дни месяца (для тепловой карты)
-            const date = t.sortDate.getDate();
-            daysOfMonthMap[date]++;
-        });
-
-        const topCategories = Object.entries(categoryMap)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 5)
-            .map(([name, amount]) => ({ name, amount, percentage: ((amount / totalGiven) * 100).toFixed(1) }));
-
-        // Кумулятивные данные
-        const sortedAll = [...data].sort((a, b) => a.sortDate - b.sortDate);
-        let cumGiven = 0;
-        let cumReceived = 0;
-        const cumulativeData = sortedAll.map(t => {
-            if (t.type === 'Дано в долг') cumGiven += t.amount;
-            else cumReceived += t.amount;
-            return {
-                date: t.sortDate,
-                given: cumGiven,
-                received: cumReceived,
-                debt: cumGiven - cumReceived
-            };
-        });
-
-        // Прогноз на основе последних 60 дней — учитываем выдачу и возврат раздельно
-        const sixtyDaysAgo = new Date();
-        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-        const recentLoans   = loans.filter(t => t.sortDate >= sixtyDaysAgo);
-        const recentReturns = returns.filter(t => t.sortDate >= sixtyDaysAgo);
-
-        let forecastData = [];
-        // Считаем суммы за период и переводим в месячный темп (60 дн → 30 дн)
-        const recentGiven    = recentLoans.reduce((s, t) => s + t.amount, 0);
-        const recentReceived = recentReturns.reduce((s, t) => s + t.amount, 0);
-        const monthlyGivenRate    = recentGiven    / 2; // за 60 дн → /2 = в месяц
-        const monthlyReceivedRate = recentReceived / 2;
-        const netMonthlyChange    = monthlyGivenRate - monthlyReceivedRate;
-
-        // Строим прогноз только если есть хоть какая-то активность за 60 дней
-        if (recentLoans.length > 0 || recentReturns.length > 0) {
-            const currentDebtNow = data.length > 0 ? data[0].currentDebt : 0;
-            for (let i = 1; i <= 6; i++) {
-                const fDate = new Date();
-                fDate.setMonth(fDate.getMonth() + i);
-                forecastData.push({
-                    date: fDate,
-                    debt: Math.max(0, currentDebtNow + netMonthlyChange * i),
-                    isForecast: true
-                });
-            }
-        }
-
-        // Месячная статистика
-        const monthlyMap = {};
-        data.forEach(t => {
-            const monthKey = t.sortDate.toISOString().slice(0, 7); // YYYY-MM
-            if (!monthlyMap[monthKey]) {
-                monthlyMap[monthKey] = { given: 0, received: 0, loans: 0, returns: 0 };
-            }
-            if (t.type === 'Дано в долг') {
-                monthlyMap[monthKey].given += t.amount;
-                monthlyMap[monthKey].loans++;
-            } else {
-                monthlyMap[monthKey].received += t.amount;
-                monthlyMap[monthKey].returns++;
-            }
-        });
-
-        const monthlyStats = Object.entries(monthlyMap)
-            .sort(([a], [b]) => b.localeCompare(a))
-            .map(([month, stats]) => ({
-                month,
-                ...stats,
-                net: stats.given - stats.received
-            }));
-
-        // Недельная статистика
-        const weeklyMap = {};
-        data.forEach(t => {
-            const d = t.sortDate;
-            const day = d.getDay();
-            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-            const monday = new Date(d);
-            monday.setDate(diff);
-            const weekKey = monday.toISOString().slice(0, 10);
-            if (!weeklyMap[weekKey]) {
-                weeklyMap[weekKey] = { given: 0, received: 0, loans: 0, returns: 0, weekStart: monday };
-            }
-            if (t.type === 'Дано в долг') {
-                weeklyMap[weekKey].given += t.amount;
-                weeklyMap[weekKey].loans++;
-            } else {
-                weeklyMap[weekKey].received += t.amount;
-                weeklyMap[weekKey].returns++;
-            }
-        });
-
-        const weeklyStats = Object.entries(weeklyMap)
-            .sort(([a], [b]) => b.localeCompare(a))
-            .map(([week, stats]) => ({
-                week,
-                ...stats,
-                net: stats.given - stats.received
-            }));
-
-        // Тренд долга (последние 3 месяца)
-        const recentMonths = monthlyStats.slice(0, 3);
-        let debtTrend = 'stable';
-        if (recentMonths.length >= 2) {
-            const trend = recentMonths[0].net - recentMonths[1].net;
-            debtTrend = trend > 500 ? 'growing' : trend < -500 ? 'decreasing' : 'stable';
-        }
-
-        // Прогноз погашения (на основе среднего возврата в месяц)
-        const avgReturnPerMonth = returns.length > 0 ? totalReceived / monthsDiff : 0;
-        const projectedPayoff = avgReturnPerMonth > 0
-            ? Math.max(0, Math.ceil(currentDebt / avgReturnPerMonth))
-            : null;
-
-        // Анализ интервалов
-        let intervals = [];
-        for (let i = 0; i < loans.length - 1; i++) {
-            const diff = (loans[i].sortDate - loans[i + 1].sortDate) / (1000 * 60 * 60 * 24);
-            intervals.push(diff);
-        }
-        const avgInterval = intervals.length > 0 ? (intervals.reduce((a, b) => a + b, 0) / intervals.length).toFixed(1) : 0;
-        const recentIntervals = intervals.slice(0, 5);
-        const prevIntervals = intervals.slice(5, 10);
-        const intervalTrend = recentIntervals.length > 0 && prevIntervals.length > 0 ?
-            (recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length < prevIntervals.reduce((a, b) => a + b, 0) / prevIntervals.length ? 'decreasing' : 'increasing') : 'stable';
-
-        // План погашения (Burndown)
-        let burndown = [];
-        if (payoffTargetDate) {
-            const target = new Date(payoffTargetDate);
-            const start = new Date();
-            const startDebt = currentDebt;
-            const daysLeft = Math.max(1, (target - start) / (1000 * 60 * 60 * 24));
-
-            for (let i = 0; i <= 10; i++) {
-                const date = new Date(start);
-                date.setDate(date.getDate() + (daysLeft / 10) * i);
-                burndown.push({
-                    date,
-                    debt: Math.max(0, startDebt - (startDebt / 10) * i)
-                });
-            }
-        }
-
-        // Предупреждение о лимите (пользовательский лимит)
-        const isOverLimit = currentDebt > safetyLimit;
-
-        // Интерактивный симулятор (Что если?)
-        // Отвечает на вопрос: за сколько месяцев погасится ТЕКУЩИЙ долг,
-        // если она будет возвращать (средний возврат за 60 дн + доплата) в месяц.
-        // Новые займы не учитываются — это сценарий погашения, а не прогноз.
-        let simulatorData = [];
-        if (extraPayment > 0) {
-            const totalMonthlyReturn = monthlyReceivedRate + extraPayment;
-            if (totalMonthlyReturn > 0) {
-                for (let i = 0; i <= 36; i++) {
-                    const remaining = currentDebt - totalMonthlyReturn * i;
-                    const date = new Date();
-                    date.setMonth(date.getMonth() + i);
-                    simulatorData.push({
-                        date,
-                        debt: Math.max(0, remaining)
-                    });
-                    if (remaining <= 0) break;
-                }
-            }
-        }
-
-        // 2. Сравнение периодов (Бенчмарки)
-        let benchmarks = {
-            monthlyChange: 0,
-            intervalChange: 0,
-            returnSpeedChange: 0
-        };
-        if (monthlyStats.length >= 2) {
-            benchmarks.monthlyChange = (((monthlyStats[0].given / monthlyStats[1].given) - 1) * 100).toFixed(1);
-        }
-        if (recentIntervals.length > 0 && prevIntervals.length > 0) {
-            const currentAvg = recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length;
-            const prevAvg = prevIntervals.reduce((a, b) => a + b, 0) / prevIntervals.length;
-            benchmarks.intervalChange = (currentAvg - prevAvg).toFixed(1);
-        }
-
-        // 3. Детектор вредных привычек
-        const badHabitsTotal = categoryMap['Вредные привычки'] || 0;
-        const potentialSavings = badHabitsTotal * 0.5;
-
-        // 4. Геймификация (Достижения)
-        const achievements = [];
-        const daysSinceLastLoan = lastLoan ? (new Date() - lastLoan.sortDate) / (1000 * 60 * 60 * 24) : 999;
-
-        if (daysSinceLastLoan >= 7) achievements.push({ id: 'discipline', icon: '🏆', title: 'Железная дисциплина', desc: '7+ дней без новых займов' });
-
-        // 5. Мини-планировщик (анализ обещаний в комментах)
-        const plannedPayments = data.filter(t => t.comment.match(/\d{2}\.\d{2}/)).map(t => {
-            const dateMatch = t.comment.match(/\d{2}\.\d{2}/);
-            return {
-                id: (t.id || Math.random()),
-                date: dateMatch ? dateMatch[0] : '',
-                amount: t.amount,
-                comment: t.comment,
-                type: t.type
-            };
-        }).slice(0, 5);
-
-        // 6. Учет инфляции (Real Value)
-        const monthlyInflation = inflationRate / 100 / 12;
-        const realDebtValue = currentDebt / Math.pow(1 + monthlyInflation, monthsDiff);
-        const inflationProfit = Math.max(0, currentDebt - realDebtValue);
-        const inflationGainPercent = currentDebt > 0 ? ((inflationProfit / currentDebt) * 100).toFixed(1) : 0;
-
-        // 7. Температура стресса (0-100)
-        const debtToIncomeRatio = monthlyIncome > 0 ? (currentDebt / monthlyIncome) : 0;
-        let stressScore = Math.min(100, Math.ceil(
-            (debtToIncomeRatio * 20) +
-            (debtTrend === 'growing' ? 30 : 0) +
-            (isOverLimit ? 20 : 0)
-        ));
-
-        // 8. Бюджет на радости
-        const monthlyRest = Math.max(0, monthlyIncome - avgMonthlyGiven);
-        const joyBudget = (monthlyRest * 0.1) / 30; // 10% от остатка на радости в день
-
-        // 9. Детектор аномалий (Черные дыры)
-        const anomalies = [];
-        const weekdayCounts = Object.values(weekdayMap);
-        const avgWeekdayAmount = weekdayCounts.reduce((a, b) => a + b, 0) / 7;
-        Object.entries(weekdayMap).forEach(([day, amt]) => {
-            if (amt > avgWeekdayAmount * 1.5) {
-                const daysNames = ['воскресенье', 'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу'];
-                anomalies.push({ type: 'day_spike', msg: `Всплеск трат в ${daysNames[day]}. Почти в ${(amt / avgWeekdayAmount).toFixed(1)} раза выше среднего.` });
-            }
-        });
-
-        // 10. Мили (Milestones) — удалено, заменено на план погашения
-
-        // 11. Снежный ком vs Лавина
-        const entities = {};
-        loans.forEach(l => {
-            const name = l.comment.split(' ')[0] || 'Unknown';
-            if (!entities[name]) entities[name] = 0;
-            entities[name] += l.amount;
-        });
-        const snowball = Object.entries(entities).sort((a, b) => a[1] - b[1]); // Сначала мелкие
-        const avalanche = Object.entries(entities).sort((a, b) => b[1] - a[1]); // Сначала крупные
-
-        // 12. Стаж долгов (Aging)
-        const oldestLoan = loans.length > 0 ? loans[loans.length - 1] : null;
-        const debtAgeDays = oldestLoan ? Math.floor((new Date() - oldestLoan.sortDate) / (1000 * 60 * 60 * 24)) : 0;
-
-        // 13. Финансовая свобода (Liberty)
-        const recentRepayments = recentMonths.reduce((sum, m) => sum + m.received, 0) / (recentMonths.length || 1);
-        const libertyPercentage = monthlyIncome > 0 ? (recentRepayments / monthlyIncome * 100).toFixed(1) : 0;
-        const libertyValue = recentRepayments;
-
-        // 14. Упущенная выгода (Opportunity Cost)
-        // Считаем сколько бы заработали эти деньги под 15% годовых
-        const opportunityCost = currentDebt * 0.15 * (monthsDiff / 12);
-
-        // 15. Рейтинг надежности (Trust Score)
-        const debtorStats = {};
-        data.forEach(t => {
-            const name = t.comment.split(' ')[0] || 'Unknown';
-            if (!debtorStats[name]) debtorStats[name] = { given: 0, received: 0, count: 0, lastActivity: t.sortDate };
-            if (t.type === 'Дано в долг') debtorStats[name].given += t.amount;
-            else debtorStats[name].received += t.amount;
-            debtorStats[name].count++;
-            if (t.sortDate > debtorStats[name].lastActivity) debtorStats[name].lastActivity = t.sortDate;
-        });
-
-        const reliabilityRanking = Object.entries(debtorStats)
-            .map(([name, s]) => {
-                const ratio = s.given > 0 ? (s.received / s.given) : 0;
-                const daysSinceLast = Math.floor((new Date() - s.lastActivity) / (1000 * 60 * 60 * 24));
-                // Простая формула: % возврата - штраф за простой
-                const score = Math.max(0, Math.round((ratio * 100) - (daysSinceLast / 10)));
-                return { name, score, ratio: (ratio * 100).toFixed(0), lastActivity: daysSinceLast };
-            })
-            .filter(d => d.name !== 'Unknown')
-            .sort((a, b) => b.score - a.score);
-
-        // 16. Список "зависших" долгов (Stale Loans)
-        const staleLoans = reliabilityRanking
-            .filter(d => d.lastActivity > 60 && d.score < 100)
-            .slice(0, 5);
-
-        return {
-            currentDebt,
-            totalGiven,
-            totalReceived,
-            returnRate: totalGiven > 0 ? ((totalReceived / totalGiven) * 100).toFixed(1) : 0,
-            avgLoanAmount,
-            loansPerMonth: loansPerMonth.toFixed(1),
-            currentMonthGiven,
-            lastWeekGiven,
-            avgMonthlyGiven,
-            topCategories,
-            monthlyStats,
-            weeklyStats,
-            debtTrend,
-            projectedPayoff,
-            isOverLimit,
-            weekdayStats: Object.entries(weekdayMap).map(([day, amount]) => ({ day: parseInt(day), amount })),
-            loanSizeStats: Object.entries(loanSizeBuckets).map(([size, data]) => ({ size, ...data })),
-            daysOfMonthData: Object.entries(daysOfMonthMap).map(([day, count]) => ({ day: parseInt(day), count })),
-            cumulativeData,
-            forecastData,
-            simulatorData,
-            _monthlyReceivedRate: monthlyReceivedRate,
-            _netMonthlyChange: netMonthlyChange,
-            benchmarks,
-            badHabits: { total: badHabitsTotal, potentialSavings },
-            achievements,
-            plannedPayments,
-            inflationProfit,
-            stressScore,
-            joyBudget,
-            anomalies,
-
-            strategies: { snowball: snowball.slice(0, 3), avalanche: avalanche.slice(0, 3) },
-            intervals: { avg: avgInterval, trend: intervalTrend },
-            burndown,
+        return calculateDebtStats({
+            data,
             safetyLimit,
-            debtAgeDays,
-            liberty: { percentage: libertyPercentage, value: libertyValue },
-            opportunityCost,
-            reliabilityRanking,
-            staleLoans,
-            realValue: { nominal: currentDebt, real: realDebtValue, gain: inflationProfit, percent: inflationGainPercent },
-            currency: {
-                usd: currentDebt / exchangeRates.usd,
-                eur: currentDebt / exchangeRates.eur,
-                rates: exchangeRates,
-                // Гипотетический убыток если курс вырос с 40.0 до текущего
-                hedgeGain: (currentDebt / 40.0) - (currentDebt / exchangeRates.usd)
-            }
-        };
-    }, [data, safetyLimit, payoffTargetDate, extraPayment, monthlyIncome, inflationRate]);
-
-    const filteredData = useMemo(() => {
-        return data.filter(t => {
-            const matchesSearch = (t.comment || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (t.payee || '').toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesFilter = filter === 'all' || (filter === 'given' && t.type === 'Дано в долг') || (filter === 'received' && t.type === 'Возврат');
-            const matchesWeek = !selectedWeek || (t.sortDate >= selectedWeek.start && t.sortDate <= selectedWeek.end);
-            return matchesSearch && matchesFilter && matchesWeek;
+            payoffTargetDate,
+            extraPayment,
+            monthlyIncome,
+            inflationRate,
+            exchangeRates
         });
-    }, [data, searchQuery, filter, selectedWeek]);
+    }, [data, safetyLimit, payoffTargetDate, extraPayment, monthlyIncome, inflationRate, exchangeRates]);
 
-    const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-
+    // Подготовка данных графика долга
     const formattedChartData = useMemo(() => {
         if (data.length === 0) return [];
-
         const dailyData = {};
         [...data].forEach(d => {
             const dateKey = d.formattedDate;
@@ -690,7 +161,6 @@ const App = () => {
                 };
             }
         });
-
         return Object.values(dailyData).sort((a, b) => a.date - b.date);
     }, [data]);
 
@@ -707,16 +177,14 @@ const App = () => {
         } else if (chartPeriod === '6m') {
             from = new Date(now); from.setMonth(from.getMonth() - 6);
         } else if (chartPeriod === 'ytd') {
-            from = new Date(now.getFullYear(), 0, 1); // 1 января текущего года
+            from = new Date(now.getFullYear(), 0, 1);
         } else if (chartPeriod === '1y') {
             from = new Date(now); from.setFullYear(from.getFullYear() - 1);
         }
 
         const filtered = formattedChartData.filter(d => d.date >= from);
-        // Если точек нет — добавляем стартовую точку с долгом на момент начала периода
         if (filtered.length === 0) return formattedChartData.slice(-1);
 
-        // Добавляем точку "на момент начала периода" — берём последнюю точку до from
         const before = formattedChartData.filter(d => d.date < from);
         if (before.length > 0) {
             const startPoint = { ...before[before.length - 1], date: from };
@@ -727,541 +195,336 @@ const App = () => {
 
     return (
         <div className="container">
+            {/* Главный заголовок */}
             <header className="main-header">
                 <div>
-                    <h1>Анализатор долгов</h1>
+                    <h1>DebtSense Analytics</h1>
                     <p className="subtitle">
-                        Учет транзакций Ганны Є.
+                        Учет и поведенческий анализ займов Ганны Є.
                         <span className={`status-indicator ${isOnline ? 'online' : 'offline'}`}>
                             {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
                             {isOnline ? 'Онлайн' : 'Локально'}
                         </span>
                     </p>
                 </div>
-                <button className="theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+                <button
+                    className="theme-toggle"
+                    aria-label="Переключить тему"
+                    onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+                >
                     {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
             </header>
 
-            <FinancialAdvice stats={stats} />
+            {/* Навигационные вкладки верхнего уровня */}
+            <nav className="nav-tabs-bar">
+                <button
+                    className={`nav-tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('dashboard')}
+                >
+                    <LayoutDashboard size={18} />
+                    <span>Обзор</span>
+                </button>
+                <button
+                    className={`nav-tab-btn ${activeTab === 'insights' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('insights')}
+                >
+                    <LineChart size={18} />
+                    <span>Глубокая аналитика</span>
+                </button>
+                <button
+                    className={`nav-tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('transactions')}
+                >
+                    <TableProperties size={18} />
+                    <span>Реестр транзакций</span>
+                </button>
+            </nav>
 
-            {/* Achievements Section */}
-            {stats.achievements.length > 0 && (
-                <div className="achievements-bar">
-                    {stats.achievements.map(ach => (
-                        <div key={ach.id} className="achievement-chip" title={ach.desc}>
-                            <span className="ach-icon">{ach.icon}</span>
-                            <div className="ach-info">
-                                <span className="ach-title">{ach.title}</span>
-                                <span className="ach-desc">{ach.desc}</span>
-                            </div>
+            {/* Вкладка 1: Главный дашборд */}
+            {activeTab === 'dashboard' && (
+                <>
+                    <FinancialAdvice stats={stats} />
+
+                    {/* Достижения */}
+                    {stats.achievements.length > 0 && (
+                        <div className="achievements-bar">
+                            {stats.achievements.map(ach => (
+                                <div key={ach.id} className="achievement-chip" title={ach.desc}>
+                                    <span className="ach-icon">{ach.icon}</span>
+                                    <div className="ach-info">
+                                        <span className="ach-title">{ach.title}</span>
+                                        <span className="ach-desc">{ach.desc}</span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
-            )}
-
-            {/* План погашения до 31.12.2026 */}
-            <div className="card milestones-card">
-                {(() => {
-                    const target = new Date(2026, 11, 31);
-                    const now = new Date();
-                    const monthsLeft = Math.max(1, (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()));
-                    const monthlyPayment = monthsLeft > 0 ? stats.currentDebt / monthsLeft : stats.currentDebt;
-                    const repayPct = stats.totalGiven > 0 ? Math.min(100, (stats.totalReceived / stats.totalGiven) * 100) : 0;
-                    return (
-                        <>
-                            <div className="repayment-header">
-                                <h3>Погашение до 31.12.2026 🎯</h3>
-                                <span className="repayment-badge">
-                                    {monthsLeft} мес. осталось
-                                </span>
-                            </div>
-                            <div className="repayment-hero">
-                                <div className="repayment-hero-label">Ежемесячный платёж</div>
-                                <div className="repayment-hero-amount">
-                                    {formatAmount(monthlyPayment)} <span className="value-symbol">₴</span>
-                                </div>
-                                <div className="repayment-hero-sub">
-                                    {formatAmount(stats.currentDebt)} ₴ · {monthsLeft} платежей
-                                </div>
-                            </div>
-                            <div className="repayment-progress">
-                                <div className="repayment-progress-bar">
-                                    <div className="repayment-progress-fill" style={{ width: `${repayPct}%` }} />
-                                </div>
-                                <div className="repayment-progress-labels">
-                                    <span>Выдано: {formatAmount(stats.totalGiven)} ₴</span>
-                                    <span>Возвращено: {repayPct.toFixed(0)}%</span>
-                                    <span>Цель: 100%</span>
-                                </div>
-                            </div>
-                            <div className="repayment-details">
-                                <div className="repayment-item">
-                                    <span className="repayment-item-icon">📅</span>
-                                    <span className="repayment-label">Осталось месяцев</span>
-                                    <span className="repayment-value">{monthsLeft}</span>
-                                </div>
-                                <div className="repayment-item">
-                                    <span className="repayment-item-icon">💰</span>
-                                    <span className="repayment-label">Текущий долг</span>
-                                    <span className="repayment-value">{formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span></span>
-                                </div>
-                                <div className="repayment-item">
-                                    <span className="repayment-item-icon">📊</span>
-                                    <span className="repayment-label">Всего к выплате</span>
-                                    <span className="repayment-value">{formatAmount(monthlyPayment * monthsLeft)} <span className="value-symbol">₴</span></span>
-                                </div>
-                            </div>
-                        </>
-                    );
-                })()}
-            </div>
-
-            <div className="stats-grid">
-                <div className={`card stat-card ${stats.isOverLimit ? 'danger blink' : 'danger'}`}>
-                    <span className="label">
-                        Долг Ганны 📈
-                        {stats.isOverLimit && <span className="warning-icon">⚠️</span>}
-                    </span>
-                    <span className="value">
-                        {formatAmount(stats.currentDebt)} <span className="value-symbol">₴</span>
-                    </span>
-                    {stats.benchmarks.monthlyChange !== 0 && (
-                        <span className={`stat-delta ${stats.benchmarks.monthlyChange > 0 ? 'up' : 'down'}`}>
-                            {stats.benchmarks.monthlyChange > 0 ? '+' : ''}{stats.benchmarks.monthlyChange}% к прошлому мес.
-                        </span>
                     )}
-                </div>
-                <div className="card stat-card warning">
-                    <span className="label">Дано всего</span>
-                    <span className="value">{formatAmount(stats.totalGiven)} <span className="value-symbol">₴</span></span>
-                </div>
-                <div className="card stat-card success">
-                    <span className="label">Вернула всего</span>
-                    <span className="value">{formatAmount(stats.totalReceived)} <span className="value-symbol">₴</span></span>
-                </div>
-                <div className="card stat-card">
-                    <span className="label">Процент возврата</span>
-                    <span className="value">{stats.returnRate}<span className="value-symbol">%</span></span>
-                </div>
-                <div className="card stat-card info">
-                    <span className="label">Примерное время возврата текущего долга</span>
-                    <span className="value">
-                        {stats.projectedPayoff !== null ? (
-                            <>{stats.projectedPayoff} <span className="value-unit">мес.</span></>
-                        ) : (
-                            <>Нет данных</>
-                        )}
-                    </span>
-                </div>
-                <div className="card stat-card info">
-                    <span className="label">Одолжила у меня за текущий месяц</span>
-                    <span className="value">{formatAmount(stats.currentMonthGiven)} <span className="value-symbol">₴</span></span>
-                    <span style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>только новые займы</span>
-                </div>
-                <div className="card stat-card info">
-                    <span className="label">Одолжила за последние 7 дней</span>
-                    <span className="value">{formatAmount(stats.lastWeekGiven)} <span className="value-symbol">₴</span></span>
-                    <span style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>только новые займы</span>
-                </div>
-                <div className="card stat-card info">
-                    <span className="label">В среднем в месяц</span>
-                    <span className="value">{formatAmount(stats.avgMonthlyGiven)} <span className="value-symbol">₴</span></span>
-                </div>
-                <div className={`card stat-card ${stats.debtTrend === 'growing' ? 'danger' : stats.debtTrend === 'decreasing' ? 'success' : 'info'}`}>
-                    <span className="label">Тренд</span>
-                    <span className="value">
-                        {stats.debtTrend === 'growing' ? (
-                            <><span className="value-symbol">📈</span> Растет</>
-                        ) : stats.debtTrend === 'decreasing' ? (
-                            <><span className="value-symbol">📉</span> Снижается</>
-                        ) : (
-                            <><span className="value-symbol">➡️</span> Стабильно</>
-                        )}
-                    </span>
-                </div>
-            </div>
 
-            <div className="card upload-card">
-                <input
-                    type="file"
-                    id="file"
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                    accept=".csv"
-                />
-                <div className="upload-actions">
-                    <label htmlFor="file" className="upload-btn">
-                        <Upload size={20} />
-                        {uploading ? 'Загрузка...' : 'Выбрать CSV таблицу'}
-                    </label>
-                    {!isOnline && (
-                        <button className="retry-btn" onClick={fetchData} disabled={loading}>
-                            <Wifi size={16} />
-                            {loading ? 'Подключение...' : 'Попробовать снова'}
-                        </button>
-                    )}
-                </div>
-            </div>
+                    {/* План погашения */}
+                    <RepaymentPlanCard stats={stats} payoffTargetDate={payoffTargetDate} />
 
-            <div className="card chart-card">
-                <div className="card-header-actions">
-                    <h3>{chartMode === 'debt' ? 'Динамика долга и прогноз' : 'Накопительные потоки (Flow)'}</h3>
-                    <div className="header-tabs">
-                        <button className={chartMode === 'debt' ? 'active' : ''} onClick={() => setChartMode('debt')}>Тренд</button>
-                        <button className={chartMode === 'flow' ? 'active' : ''} onClick={() => setChartMode('flow')}>Поток</button>
+                    {/* Сетка ключевых KPI */}
+                    <StatsOverviewGrid stats={stats} />
+
+                    {/* Загрузка данных */}
+                    <div className="card upload-card">
+                        <input
+                            type="file"
+                            id="file"
+                            onChange={handleFileUpload}
+                            style={{ display: 'none' }}
+                            accept=".csv"
+                        />
+                        <div className="upload-actions">
+                            <label htmlFor="file" className="upload-btn">
+                                <Upload size={20} />
+                                {uploading ? 'Загрузка...' : 'Выбрать CSV выписку'}
+                            </label>
+                            {!isOnline && (
+                                <button className="retry-btn" onClick={fetchData} disabled={loading}>
+                                    <Wifi size={16} />
+                                    {loading ? 'Подключение...' : 'Повторить подключение'}
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </div>
-                <div className="period-tabs">
-                    {[
-                        { key: '1d',  label: 'День'    },
-                        { key: '1m',  label: 'Месяц'   },
-                        { key: '6m',  label: '6 мес'   },
-                        { key: 'ytd', label: 'С 1 янв' },
-                        { key: '1y',  label: 'Год'     },
-                        { key: 'all', label: 'Всё'     },
-                    ].map(p => (
-                        <button
-                            key={p.key}
-                            className={chartPeriod === p.key ? 'active' : ''}
-                            onClick={() => setChartPeriod(p.key)}
-                        >{p.label}</button>
-                    ))}
-                </div>
-                <div className="chart-box">
-                    {periodFilteredChartData.length > 0 && (
-                        <ParentSize>
-                            {({ width, height }) => (
-                                <DebtChart
-                                    data={chartMode === 'debt' ? periodFilteredChartData : stats.cumulativeData}
-                                    forecastData={chartMode === 'debt' && chartPeriod === 'all' ? stats.forecastData : []}
-                                    burndownData={chartMode === 'debt' ? stats.burndown : []}
-                                    safetyLimit={chartMode === 'debt' ? safetyLimit : null}
-                                    mode={chartMode}
-                                    width={width}
-                                    height={height}
-                                    theme={theme}
-                                    simulatorData={chartMode === 'debt' && chartPeriod === 'all' ? stats.simulatorData : []}
-                                />
-                            )}
-                        </ParentSize>
-                    )}
-                </div>
-                <div className="chart-footer">
-                    {/* Легенда */}
-                    {chartMode === 'debt' && (
-                        <div className="chart-legend">
-                            <span className="legend-item">
-                                <span className="legend-line solid blue"></span> Долг
-                            </span>
-                            <span className="legend-item">
-                                <span className="legend-line dashed blue"></span> Прогноз (выдача − возврат, 60 дн)
-                            </span>
-                            {stats.burndown.length > 0 && (
-                                <span className="legend-item">
-                                    <span className="legend-line dashed orange"></span> Цель погашения
-                                </span>
-                            )}
-                            {extraPayment > 0 && (
-                                <span className="legend-item">
-                                    <span className="legend-line dashed green"></span> Ускоренный план
-                                </span>
-                            )}
-                            <span className="legend-item">
-                                <span className="legend-line dashed red"></span> Лимит
-                            </span>
-                        </div>
-                    )}
 
-                    {/* Настройки */}
-                    <div className="chart-settings">
-                        <div className="settings-group">
-                            <span className="settings-group-label">Параметры</span>
-                            <div className="setting-item">
-                                <label title="Порог долга — при превышении карточка мигает">⚠️ Лимит долга, ₴</label>
-                                <input type="number" value={safetyLimit} min="0" step="1000" onChange={(e) => {
-                                    setSafetyLimit(Number(e.target.value));
-                                    localStorage.setItem('safetyLimit', e.target.value);
-                                }} />
-                            </div>
-                            <div className="setting-item">
-                                <label title="Используется для расчёта стресса и бюджета на радости">💰 Месячный доход, ₴</label>
-                                <input type="number" value={monthlyIncome} min="0" step="1000" onChange={(e) => {
-                                    setMonthlyIncome(Number(e.target.value));
-                                    localStorage.setItem('monthlyIncome', e.target.value);
-                                }} />
-                            </div>
-                            <div className="setting-item">
-                                <label title="Годовая инфляция для расчёта реальной стоимости долга">📈 Инфляция, % год.</label>
-                                <input type="number" value={inflationRate} min="0" max="100" step="1" onChange={(e) => {
-                                    setInflationRate(Number(e.target.value));
-                                    localStorage.setItem('inflationRate', e.target.value);
-                                }} />
+                    {/* График динамики долга */}
+                    <div className="card chart-card">
+                        <div className="card-header-actions">
+                            <h3>{chartMode === 'debt' ? 'Динамика долга и прогноз' : 'Накопительные потоки (Flow)'}</h3>
+                            <div className="header-tabs">
+                                <button className={chartMode === 'debt' ? 'active' : ''} onClick={() => setChartMode('debt')}>Тренд</button>
+                                <button className={chartMode === 'flow' ? 'active' : ''} onClick={() => setChartMode('flow')}>Поток</button>
                             </div>
                         </div>
 
-                        {chartMode === 'debt' && (
-                            <div className="settings-group">
-                                <span className="settings-group-label">Цель погашения</span>
-                                <div className="setting-item">
-                                    <label title="Оранжевый пунктир — план погашения к этой дате">🎯 Дата цели</label>
-                                    <input
-                                        type="date"
-                                        value={payoffTargetDate}
-                                        min={new Date().toISOString().slice(0, 10)}
-                                        onChange={(e) => {
-                                            setPayoffTargetDate(e.target.value);
-                                            localStorage.setItem('payoffTargetDate', e.target.value);
-                                        }}
-                                    />
+                        <div className="period-tabs">
+                            {[
+                                { key: '1d', label: 'День' },
+                                { key: '1m', label: 'Месяц' },
+                                { key: '6m', label: '6 мес' },
+                                { key: 'ytd', label: 'С 1 янв' },
+                                { key: '1y', label: 'Год' },
+                                { key: 'all', label: 'Всё' },
+                            ].map(p => (
+                                <button
+                                    key={p.key}
+                                    className={chartPeriod === p.key ? 'active' : ''}
+                                    onClick={() => setChartPeriod(p.key)}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="chart-box">
+                            {periodFilteredChartData.length > 0 && (
+                                <ParentSize>
+                                    {({ width, height }) => (
+                                        <DebtChart
+                                            data={chartMode === 'debt' ? periodFilteredChartData : stats.cumulativeData}
+                                            forecastData={chartMode === 'debt' && chartPeriod === 'all' ? stats.forecastData : []}
+                                            burndownData={chartMode === 'debt' ? stats.burndown : []}
+                                            safetyLimit={chartMode === 'debt' ? safetyLimit : null}
+                                            mode={chartMode}
+                                            width={width}
+                                            height={height}
+                                            theme={theme}
+                                            simulatorData={chartMode === 'debt' && chartPeriod === 'all' ? stats.simulatorData : []}
+                                        />
+                                    )}
+                                </ParentSize>
+                            )}
+                        </div>
+
+                        <div className="chart-footer">
+                            {/* Легенда */}
+                            {chartMode === 'debt' && (
+                                <div className="chart-legend">
+                                    <span className="legend-item">
+                                        <span className="legend-line solid blue"></span> Долг
+                                    </span>
+                                    <span className="legend-item">
+                                        <span className="legend-line dashed blue"></span> Прогноз (60 дн)
+                                    </span>
+                                    {stats.burndown.length > 0 && (
+                                        <span className="legend-item">
+                                            <span className="legend-line dashed orange"></span> Цель погашения
+                                        </span>
+                                    )}
+                                    {extraPayment > 0 && (
+                                        <span className="legend-item">
+                                            <span className="legend-line dashed green"></span> Ускоренный план
+                                        </span>
+                                    )}
+                                    <span className="legend-item">
+                                        <span className="legend-line dashed red"></span> Лимит
+                                    </span>
                                 </div>
-                                {payoffTargetDate && stats.burndown.length > 0 && (() => {
-                                    const target = new Date(payoffTargetDate);
-                                    const daysLeft = Math.max(0, Math.ceil((target - new Date()) / (1000 * 60 * 60 * 24)));
-                                    const monthsLeft = (daysLeft / 30).toFixed(1);
-                                    const requiredMonthly = daysLeft > 0
-                                        ? formatAmount(stats.currentDebt / (daysLeft / 30))
-                                        : '—';
-                                    return (
-                                        <div className="burndown-info">
-                                            <span>⏳ {daysLeft} дн. ({monthsLeft} мес.)</span>
-                                            <span>Нужно возвращать: <strong>{requiredMonthly} ₴/мес</strong></span>
+                            )}
+
+                            {/* Настройки параметров */}
+                            <div className="chart-settings">
+                                <div className="settings-group">
+                                    <span className="settings-group-label">Параметры аналитики</span>
+                                    <div className="setting-item">
+                                        <label title="Порог долга — при превышении карточка предупреждает">⚠️ Лимит долга, ₴</label>
+                                        <input
+                                            type="number"
+                                            value={safetyLimit}
+                                            min="0"
+                                            step="1000"
+                                            onChange={(e) => {
+                                                const val = Number(e.target.value);
+                                                setSafetyLimit(val);
+                                                localStorage.setItem('safetyLimit', e.target.value);
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="setting-item">
+                                        <label title="Используется для расчёта стресса и бюджета">💰 Месячный доход, ₴</label>
+                                        <input
+                                            type="number"
+                                            value={monthlyIncome}
+                                            min="0"
+                                            step="1000"
+                                            onChange={(e) => {
+                                                const val = Number(e.target.value);
+                                                setMonthlyIncome(val);
+                                                localStorage.setItem('monthlyIncome', e.target.value);
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="setting-item">
+                                        <label title="Годовая инфляция для расчета реальной стоимости долга">📈 Инфляция, % год.</label>
+                                        <input
+                                            type="number"
+                                            value={inflationRate}
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            onChange={(e) => {
+                                                const val = Number(e.target.value);
+                                                setInflationRate(val);
+                                                localStorage.setItem('inflationRate', e.target.value);
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {chartMode === 'debt' && (
+                                    <div className="settings-group">
+                                        <span className="settings-group-label">Цель погашения</span>
+                                        <div className="setting-item">
+                                            <label title="План погашения к этой дате">🎯 Дата цели</label>
+                                            <input
+                                                type="date"
+                                                value={payoffTargetDate}
+                                                min={new Date().toISOString().slice(0, 10)}
+                                                onChange={(e) => {
+                                                    setPayoffTargetDate(e.target.value);
+                                                    localStorage.setItem('payoffTargetDate', e.target.value);
+                                                }}
+                                            />
                                         </div>
-                                    );
-                                })()}
-                                {payoffTargetDate && (
-                                    <button className="clear-date-btn" onClick={() => {
-                                        setPayoffTargetDate('');
-                                        localStorage.removeItem('payoffTargetDate');
-                                    }}>✕ Сбросить дату</button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Симулятор */}
-                    {chartMode === 'debt' && (
-                        <div className="simulator-control">
-                            <div className="simulator-header">
-                                <label>🚀 Симулятор доплаты</label>
-                                <span className="simulator-value">
-                                    {extraPayment > 0 ? `+${formatAmount(extraPayment)} ₴/мес` : 'выкл.'}
-                                </span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="10000"
-                                step="500"
-                                value={extraPayment}
-                                onChange={(e) => setExtraPayment(Number(e.target.value))}
-                            />
-                            <div className="simulator-ticks">
-                                <span>0</span><span>2 500</span><span>5 000</span><span>7 500</span><span>10 000</span>
-                            </div>
-                            <div className="simulator-base-hint">
-                                База возврата (60 дн): <strong>{formatAmount(stats._monthlyReceivedRate || 0)} ₴/мес</strong>
-                                {extraPayment > 0 && <> → итого: <strong style={{color:'#10b981'}}>{formatAmount((stats._monthlyReceivedRate || 0) + extraPayment)} ₴/мес</strong></>}
-                            </div>
-                            {extraPayment > 0 && stats.simulatorData.length > 0 && (() => {
-                                const lastPoint = stats.simulatorData[stats.simulatorData.length - 1];
-                                const monthsToZero = stats.simulatorData.findIndex(d => d.debt <= 0);
-                                const simMonths = stats.simulatorData.length - 1;
-                                // Сколько месяцев без доплаты (только базовый возврат)
-                                const baseReturn = stats._monthlyReceivedRate || 0;
-                                const monthsWithoutExtra = baseReturn > 0
-                                    ? Math.ceil(stats.currentDebt / baseReturn)
-                                    : null;
-                                const monthsSaved = (monthsToZero > 0 && monthsWithoutExtra)
-                                    ? monthsWithoutExtra - monthsToZero
-                                    : null;
-                                return (
-                                    <div className="simulator-result">
-                                        {monthsToZero > 0
-                                            ? <span>✅ Долг обнулится через <strong>{monthsToZero} мес.</strong></span>
-                                            : <span>📉 Через {simMonths} мес. остаток: <strong>{formatAmount(lastPoint.debt)} ₴</strong></span>
-                                        }
-                                        {monthsSaved > 0 && (
-                                            <span style={{display:'block', marginTop:'4px', color:'#10b981'}}>
-                                                💡 Быстрее на <strong>{monthsSaved} мес.</strong> vs без доплаты
-                                            </span>
+                                        {payoffTargetDate && stats.burndown.length > 0 && (() => {
+                                            const target = new Date(payoffTargetDate);
+                                            const daysLeft = Math.max(0, Math.ceil((target - new Date()) / (1000 * 60 * 60 * 24)));
+                                            const monthsLeft = (daysLeft / 30).toFixed(1);
+                                            const requiredMonthly = daysLeft > 0
+                                                ? formatAmount(stats.currentDebt / (daysLeft / 30))
+                                                : '—';
+                                            return (
+                                                <div className="burndown-info">
+                                                    <span>⏳ {daysLeft} дн. ({monthsLeft} мес.)</span>
+                                                    <span>Нужно возвращать: <strong>{requiredMonthly} ₴/мес</strong></span>
+                                                </div>
+                                            );
+                                        })()}
+                                        {payoffTargetDate && (
+                                            <button
+                                                className="clear-date-btn"
+                                                onClick={() => {
+                                                    setPayoffTargetDate('');
+                                                    localStorage.removeItem('payoffTargetDate');
+                                                }}
+                                            >
+                                                ✕ Сбросить дату
+                                            </button>
                                         )}
                                     </div>
-                                );
-                            })()}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-
-            {/* Статистика по месяцам / неделям */}
-            <div className="card analytics-card">
-                <div className="stats-view-header">
-                    <h3>Статистика по {statsView === 'month' ? 'месяцам' : 'неделям'}</h3>
-                    <div className="stats-view-tabs">
-                        <button className={statsView === 'month' ? 'active' : ''} onClick={() => setStatsView('month')}>Месяцы</button>
-                        <button className={statsView === 'week' ? 'active' : ''} onClick={() => setStatsView('week')}>Недели</button>
-                    </div>
-                </div>
-                {statsView === 'month' ? (
-                    <>
-                        <div className="monthly-stats">
-                            {stats.monthlyStats
-                                .slice((monthlyPage - 1) * 4, monthlyPage * 4)
-                                .map((month, i) => (
-                                <div key={i} className="month-item">
-                                    <div className="month-header">
-                                        <span className="month-name">
-                                            {new Date(month.month + '-01').toLocaleDateString('ru', {
-                                                year: 'numeric',
-                                                month: 'long'
-                                            })}
-                                        </span>
-                                        <span className={`month-net ${month.net > 0 ? 'negative' : 'positive'}`}>
-                                            {month.net > 0 ? '+' : ''}{formatAmount(month.net)} ₴
-                                        </span>
-                                    </div>
-                                    <div className="month-details">
-                                        <div className="month-stat">
-                                            <span>Дано: {formatAmount(month.given)} ₴ ({month.loans} раз)</span>
-                                        </div>
-                                        <div className="month-stat">
-                                            <span>Вернула: {formatAmount(month.received)} ₴ ({month.returns} раз)</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        {stats.monthlyStats.length > 4 && (
-                            <div className="pagination">
-                                <button disabled={monthlyPage <= 1} onClick={() => setMonthlyPage(p => p - 1)}>← Пред.</button>
-                                <span className="page-info">{monthlyPage} / {Math.ceil(stats.monthlyStats.length / 4)}</span>
-                                <button disabled={monthlyPage >= Math.ceil(stats.monthlyStats.length / 4)} onClick={() => setMonthlyPage(p => p + 1)}>След. →</button>
+                                )}
                             </div>
-                        )}
-                        {stats.monthlyStats.length > 0 && (() => {
-                            const pos = stats.monthlyStats.filter(m => m.received > m.given).length;
-                            const neg = stats.monthlyStats.filter(m => m.given > m.received).length;
-                            return (
-                                <div className="month-summary">
-                                    <span>Положительная динамика: <strong>{pos}</strong> мес.</span>
-                                    <span>Отрицательная динамика: <strong>{neg}</strong> мес.</span>
-                                    <span>Всего месяцев: <strong>{stats.monthlyStats.length}</strong></span>
-                                </div>
-                            );
-                        })()}
-                    </>
-                ) : (
-                    <>
-                        <div className="monthly-stats">
-                            {stats.weeklyStats
-                                .slice((weeklyPage - 1) * 4, weeklyPage * 4)
-                                .map((week, i) => (
-                                <div key={i} className={`month-item week-item ${selectedWeek?.week === week.week ? 'active' : ''}`} onClick={() => {
-                                    const monday = new Date(week.week + 'T00:00:00');
-                                    const sunday = new Date(monday);
-                                    sunday.setDate(sunday.getDate() + 6);
-                                    sunday.setHours(23, 59, 59, 999);
-                                    setSelectedWeek(selectedWeek?.week === week.week ? null : { week: week.week, start: monday, end: sunday, label: `${monday.toLocaleDateString('ru', { day: 'numeric', month: 'long' })} — ${sunday.toLocaleDateString('ru', { day: 'numeric', month: 'long' })}` });
-                                    setCurrentPage(1);
-                                }}>
-                                    <div className="month-header">
-                                        <span className="month-name">
-                                            {new Date(week.week + 'T00:00:00').toLocaleDateString('ru', {
-                                                day: 'numeric',
-                                                month: 'long'
-                                            })} — {new Date(new Date(week.week + 'T00:00:00').getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('ru', {
-                                                day: 'numeric',
-                                                month: 'long'
-                                            })}
-                                        </span>
-                                        <span className={`month-net ${week.net > 0 ? 'negative' : 'positive'}`}>
-                                            {week.net > 0 ? '+' : ''}{formatAmount(week.net)} ₴
+
+                            {/* Симулятор доплаты */}
+                            {chartMode === 'debt' && (
+                                <div className="simulator-control">
+                                    <div className="simulator-header">
+                                        <label>🚀 Симулятор ускоренного возврата</label>
+                                        <span className="simulator-value">
+                                            {extraPayment > 0 ? `+${formatAmount(extraPayment)} ₴/мес` : 'выкл.'}
                                         </span>
                                     </div>
-                                    <div className="month-details">
-                                        <div className="month-stat">
-                                            <span>Дано: {formatAmount(week.given)} ₴ ({week.loans} раз)</span>
-                                        </div>
-                                        <div className="month-stat">
-                                            <span>Вернула: {formatAmount(week.received)} ₴ ({week.returns} раз)</span>
-                                        </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="10000"
+                                        step="500"
+                                        value={extraPayment}
+                                        onChange={(e) => setExtraPayment(Number(e.target.value))}
+                                    />
+                                    <div className="simulator-ticks">
+                                        <span>0</span><span>2 500</span><span>5 000</span><span>7 500</span><span>10 000</span>
                                     </div>
+                                    <div className="simulator-base-hint">
+                                        База возврата (60 дн): <strong>{formatAmount(stats._monthlyReceivedRate || 0)} ₴/мес</strong>
+                                        {extraPayment > 0 && (
+                                            <> → итого: <strong style={{ color: '#10b981' }}>{formatAmount((stats._monthlyReceivedRate || 0) + extraPayment)} ₴/мес</strong></>
+                                        )}
+                                    </div>
+                                    {extraPayment > 0 && stats.simulatorData.length > 0 && (() => {
+                                        const lastPoint = stats.simulatorData[stats.simulatorData.length - 1];
+                                        const monthsToZero = stats.simulatorData.findIndex(d => d.debt <= 0);
+                                        const simMonths = stats.simulatorData.length - 1;
+                                        const baseReturn = stats._monthlyReceivedRate || 0;
+                                        const monthsWithoutExtra = baseReturn > 0
+                                            ? Math.ceil(stats.currentDebt / baseReturn)
+                                            : null;
+                                        const monthsSaved = (monthsToZero > 0 && monthsWithoutExtra)
+                                            ? monthsWithoutExtra - monthsToZero
+                                            : null;
+                                        return (
+                                            <div className="simulator-result">
+                                                {monthsToZero > 0
+                                                    ? <span>✅ Долг обнулится через <strong>{monthsToZero} мес.</strong></span>
+                                                    : <span>📉 Через {simMonths} мес. остаток: <strong>{formatAmount(lastPoint.debt)} ₴</strong></span>
+                                                }
+                                                {monthsSaved > 0 && (
+                                                    <span style={{ display: 'block', marginTop: '4px', color: '#10b981' }}>
+                                                        💡 Быстрее на <strong>{monthsSaved} мес.</strong> чем при текущем темпе
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
-                            ))}
+                            )}
                         </div>
-                        {stats.weeklyStats.length > 4 && (
-                            <div className="pagination">
-                                <button disabled={weeklyPage <= 1} onClick={() => setWeeklyPage(p => p - 1)}>← Пред.</button>
-                                <span className="page-info">{weeklyPage} / {Math.ceil(stats.weeklyStats.length / 4)}</span>
-                                <button disabled={weeklyPage >= Math.ceil(stats.weeklyStats.length / 4)} onClick={() => setWeeklyPage(p => p + 1)}>След. →</button>
-                            </div>
-                        )}
-                    </>
-                )}
-            </div>
-
-
-            <div className="card list-card">
-                <div className="list-header">
-                    <div className="search-wrap">
-                        <Search size={18} className="search-icon" />
-                        <input
-                            placeholder="Поиск по комментариям или имени..."
-                            value={searchQuery}
-                            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                        />
                     </div>
-                    <div className="filter-tabs">
-                        <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>Все</button>
-                        <button className={filter === 'given' ? 'active' : ''} onClick={() => setFilter('given')}>Выдано</button>
-                        <button className={filter === 'received' ? 'active' : ''} onClick={() => setFilter('received')}>Возвраты</button>
-                    </div>
-                </div>
+                </>
+            )}
 
-                <div className="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Дата</th>
-                                <th>Комментарий</th>
-                                <th>Тип</th>
-                                <th>Сумма</th>
-                                <th>Остаток</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {paginatedData.map((t, i) => (
-                                <tr key={i}>
-                                    <td>{t.formattedDate}</td>
-                                    <td>{t.comment}</td>
-                                    <td>
-                                        <span className={`type-badge ${t.type === 'Возврат' ? 'in' : 'out'}`}>
-                                            {t.type === 'Возврат' ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
-                                            {t.type}
-                                        </span>
-                                    </td>
-                                    <td>{formatAmount(t.amount)}</td>
-                                    <td className="debt-cell">{formatAmount(t.currentDebt)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+            {/* Вкладка 2: Глубокая аналитика */}
+            {activeTab === 'insights' && (
+                <DeepInsightsView stats={stats} theme={theme} />
+            )}
 
-                <Paginations.PaginationPageDefault
-                    page={currentPage}
-                    total={Math.max(1, Math.ceil(filteredData.length / itemsPerPage))}
-                    onPageChange={(page) => setCurrentPage(page)}
-                />
-                {selectedWeek && (
-                    <div className="week-filter-bar">
-                        <span>📅 {selectedWeek.label}</span>
-                        <button className="clear-week-btn" onClick={() => { setSelectedWeek(null); setCurrentPage(1); }}>✕ Сбросить</button>
-                    </div>
-                )}
-            </div>
+            {/* Вкладка 3: Реестр транзакций и сводка */}
+            {activeTab === 'transactions' && (
+                <TransactionManager data={data} stats={stats} />
+            )}
         </div>
     );
 };
